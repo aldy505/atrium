@@ -1,0 +1,2 @@
+# Ignore Python files in .agents/ for GitHub linguist language stats
+.agents/**/*.py linguist-vendored
