@@ -1,0 +1,53 @@
+{
+  "name": "atrium",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"vite\" \"tsx watch --import ./src/server/sentry.server.ts src/server/index.ts\"",
+    "build": "vite build && tsc -p tsconfig.server.json",
+    "start": "node --import ./dist/server/sentry.server.js dist/server/index.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.866.0",
+    "@fastify/cookie": "^10.0.1",
+    "@fastify/cors": "^10.0.1",
+    "@fastify/multipart": "^9.0.3",
+    "@fastify/static": "^8.0.1",
+    "@sentry/node": "^10.38.0",
+    "@sentry/react": "^10.38.0",
+    "@tanstack/react-query": "^5.62.2",
+    "dotenv": "^17.3.1",
+    "fastify": "^5.0.0",
+    "highlight.js": "^11.11.1",
+    "ioredis": "^5.4.1",
+    "mime-types": "^2.1.35",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/mime-types": "^2.1.4",
+    "@types/node": "^22.8.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "concurrently": "^9.0.1",
+    "oxfmt": "^0.32.0",
+    "oxlint": "^1.47.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  },
+  "packageManager": "pnpm@10.0.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
