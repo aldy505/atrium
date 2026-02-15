@@ -203,3 +203,23 @@ Notes:
 ## Open Source Notes
 
 This repository is designed for self-hosting and extension. Future versions can add sharing links, batch operations, richer previews, and ACL tooling.
+
+## License
+
+```
+Copyright 2026 Reinaldy Rafli
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
+See [LICENSE](./LICENSE).
