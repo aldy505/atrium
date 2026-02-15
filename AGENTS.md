@@ -5,9 +5,11 @@
 - Use **pnpm**
 - `pnpm install`
 - `pnpm dev`
-- `pnpm typecheck`
-- `pnpm build`
-- `pnpm start`
+- `pnpm run typecheck`
+- `pnpm run lint`
+- `pnpm run fmt`
+- `pnpm run build`
+- `pnpm run start`
 
 ## Commit Attribution
 
@@ -27,7 +29,7 @@ Example: `Co-Authored-By: Claude Sonnet 4 <noreply@anthropic.com>`
 - API prefix: `/api/*`
 - Session auth: secure cookie + Redis token mapping
 - S3 provider config from env only; do not add endpoint/region inputs in UI
-- Validate changes with `pnpm typecheck` and `pnpm build`
+- Validate changes with `pnpm run typecheck` and `pnpm run build`
 
 ## Local Skills
 
