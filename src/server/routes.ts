@@ -15,6 +15,8 @@ import {
 const listObjectsSchema = z.object({
   bucket: z.string().min(1),
   prefix: z.string().default(""),
+  continuationToken: z.string().optional(),
+  maxKeys: z.coerce.number().int().min(1).max(1000).default(200),
 });
 
 const bucketAndKeySchema = z.object({
@@ -55,7 +57,13 @@ export const registerS3Routes = (app: FastifyInstance): void => {
       throw new AppError("Invalid list object query params", 400, true);
     }
 
-    return listObjects(request.sessionCredentials!, parsed.data.bucket, parsed.data.prefix);
+    return listObjects(
+      request.sessionCredentials!,
+      parsed.data.bucket,
+      parsed.data.prefix,
+      parsed.data.continuationToken,
+      parsed.data.maxKeys,
+    );
   });
 
   app.post("/api/s3/upload", { preHandler: requireSession }, async (request) => {

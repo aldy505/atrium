@@ -13,7 +13,7 @@ if (dsn) {
     enableMetrics: (process.env.SENTRY_ENABLE_METRICS || "true") !== "false",
     integrations: [
       Sentry.consoleLoggingIntegration({
-        levels: ["log", "warn", "error"],
+        levels: ["warn", "error"],
       }),
     ],
   });

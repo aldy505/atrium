@@ -8,7 +8,39 @@ import {
 } from "@aws-sdk/client-s3";
 import { lookup as lookupMimeType } from "mime-types";
 import { config } from "./config.js";
+import { sentryDistributionMetric, sentryGaugeMetric } from "./observability.js";
 import type { ListObjectsResponse, SessionCredentials } from "./types.js";
+
+let uploadFilesInFlight = 0;
+let downloadFilesInFlight = 0;
+
+const trackS3Latency = async <T>(
+  operation: string,
+  run: () => Promise<T>,
+  attributes?: Record<string, unknown>,
+): Promise<T> => {
+  const startedAt = Date.now();
+
+  try {
+    const result = await run();
+    sentryDistributionMetric(`s3.${operation}.latency`, Date.now() - startedAt, "millisecond", {
+      ...attributes,
+      status: "success",
+    });
+    return result;
+  } catch (error) {
+    sentryDistributionMetric(`s3.${operation}.latency`, Date.now() - startedAt, "millisecond", {
+      ...attributes,
+      status: "failure",
+    });
+    throw error;
+  }
+};
+
+const reportTransferGauges = (attributes?: Record<string, unknown>): void => {
+  sentryGaugeMetric("s3.upload.files_in_flight", uploadFilesInFlight, attributes);
+  sentryGaugeMetric("s3.download.files_in_flight", downloadFilesInFlight, attributes);
+};
 
 const getS3Client = (credentials: SessionCredentials): S3Client => {
   return new S3Client({
@@ -21,12 +53,14 @@ const getS3Client = (credentials: SessionCredentials): S3Client => {
 
 export const validateCredentials = async (credentials: SessionCredentials): Promise<void> => {
   const client = getS3Client(credentials);
-  await client.send(new ListBucketsCommand({}));
+  await trackS3Latency("list_buckets", () => client.send(new ListBucketsCommand({})));
 };
 
 export const listBuckets = async (credentials: SessionCredentials): Promise<string[]> => {
   const client = getS3Client(credentials);
-  const response = await client.send(new ListBucketsCommand({}));
+  const response = await trackS3Latency("list_buckets", () =>
+    client.send(new ListBucketsCommand({})),
+  );
   return (response.Buckets ?? []).map((bucket) => bucket.Name ?? "").filter(Boolean);
 };
 
@@ -34,15 +68,26 @@ export const listObjects = async (
   credentials: SessionCredentials,
   bucket: string,
   prefix: string,
+  continuationToken?: string,
+  maxKeys = 200,
 ): Promise<ListObjectsResponse> => {
   const client = getS3Client(credentials);
 
-  const response = await client.send(
-    new ListObjectsV2Command({
-      Bucket: bucket,
-      Prefix: prefix,
-      Delimiter: "/",
-    }),
+  const response = await trackS3Latency(
+    "list_objects_v2",
+    () =>
+      client.send(
+        new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: prefix,
+          Delimiter: "/",
+          ContinuationToken: continuationToken,
+          MaxKeys: maxKeys,
+        }),
+      ),
+    {
+      bucket,
+    },
   );
 
   const folders = (response.CommonPrefixes ?? [])
@@ -71,6 +116,9 @@ export const listObjects = async (
   return {
     bucket,
     prefix,
+    continuationToken,
+    nextContinuationToken: response.NextContinuationToken,
+    isTruncated: Boolean(response.IsTruncated),
     folders,
     files,
   };
@@ -84,25 +132,81 @@ export const uploadObject = async (
   contentType?: string,
 ): Promise<void> => {
   const client = getS3Client(credentials);
+  uploadFilesInFlight += 1;
+  reportTransferGauges({ bucket });
 
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: body,
-      ContentType: contentType || (lookupMimeType(key) || "application/octet-stream").toString(),
-    }),
-  );
+  try {
+    await trackS3Latency(
+      "put_object",
+      () =>
+        client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            Body: body,
+            ContentType: contentType || (lookupMimeType(key) || "application/octet-stream").toString(),
+          }),
+        ),
+      {
+        bucket,
+        file_size_bytes: body.length,
+      },
+    );
+  } finally {
+    uploadFilesInFlight = Math.max(0, uploadFilesInFlight - 1);
+    reportTransferGauges({ bucket });
+  }
 };
 
 export const getObject = async (credentials: SessionCredentials, bucket: string, key: string) => {
   const client = getS3Client(credentials);
-  return client.send(
-    new GetObjectCommand({
-      Bucket: bucket,
-      Key: key,
-    }),
-  );
+  downloadFilesInFlight += 1;
+  reportTransferGauges({ bucket });
+
+  try {
+    const response = await trackS3Latency(
+      "get_object",
+      () =>
+        client.send(
+          new GetObjectCommand({
+            Bucket: bucket,
+            Key: key,
+          }),
+        ),
+      {
+        bucket,
+      },
+    );
+
+    const body = response.Body as { once?: (event: string, handler: () => void) => void };
+
+    if (body && typeof body.once === "function") {
+      let finalized = false;
+
+      const finalize = () => {
+        if (finalized) {
+          return;
+        }
+
+        finalized = true;
+        downloadFilesInFlight = Math.max(0, downloadFilesInFlight - 1);
+        reportTransferGauges({ bucket });
+      };
+
+      body.once("end", finalize);
+      body.once("close", finalize);
+      body.once("error", finalize);
+      return response;
+    }
+
+    downloadFilesInFlight = Math.max(0, downloadFilesInFlight - 1);
+    reportTransferGauges({ bucket });
+    return response;
+  } catch (error) {
+    downloadFilesInFlight = Math.max(0, downloadFilesInFlight - 1);
+    reportTransferGauges({ bucket });
+    throw error;
+  }
 };
 
 export const deleteObject = async (
@@ -111,11 +215,18 @@ export const deleteObject = async (
   key: string,
 ): Promise<void> => {
   const client = getS3Client(credentials);
-  await client.send(
-    new DeleteObjectCommand({
-      Bucket: bucket,
-      Key: key,
-    }),
+  await trackS3Latency(
+    "delete_object",
+    () =>
+      client.send(
+        new DeleteObjectCommand({
+          Bucket: bucket,
+          Key: key,
+        }),
+      ),
+    {
+      bucket,
+    },
   );
 };
 
@@ -132,22 +243,36 @@ export const deletePrefix = async (
   do {
     // List in pages and delete object-by-object to stay compatible with providers
     // that vary in batch delete feature behavior.
-    const listResponse = await client.send(
-      new ListObjectsV2Command({
-        Bucket: bucket,
-        Prefix: prefix,
-        ContinuationToken: continuationToken,
-      }),
+    const listResponse = await trackS3Latency(
+      "list_objects_v2",
+      () =>
+        client.send(
+          new ListObjectsV2Command({
+            Bucket: bucket,
+            Prefix: prefix,
+            ContinuationToken: continuationToken,
+          }),
+        ),
+      {
+        bucket,
+      },
     );
 
     const keys = (listResponse.Contents ?? []).map((item) => item.Key).filter(Boolean) as string[];
 
     for (const key of keys) {
-      await client.send(
-        new DeleteObjectCommand({
-          Bucket: bucket,
-          Key: key,
-        }),
+      await trackS3Latency(
+        "delete_object",
+        () =>
+          client.send(
+            new DeleteObjectCommand({
+              Bucket: bucket,
+              Key: key,
+            }),
+          ),
+        {
+          bucket,
+        },
       );
       deletedCount += 1;
     }

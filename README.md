@@ -79,6 +79,14 @@ You can change these in `.env`.
 | `SENTRY_TRACES_SAMPLE_RATE`      | no         | `0.1`            | Backend tracing sample rate              |
 | `SENTRY_ENABLE_LOGS`             | no         | `true`           | Enable backend Sentry logs               |
 | `SENTRY_ENABLE_METRICS`          | no         | `true`           | Enable backend Sentry metrics            |
+| `FRONTEND_SENTRY_DSN`            | no         | -                | Frontend Sentry DSN (runtime via API)    |
+| `FRONTEND_SENTRY_ENVIRONMENT`    | no         | `NODE_ENV`       | Frontend Sentry environment (runtime)    |
+| `FRONTEND_SENTRY_RELEASE`        | no         | -                | Frontend release identifier (runtime)    |
+| `FRONTEND_SENTRY_TRACES_SAMPLE_RATE` | no     | `0.1`            | Frontend tracing sample rate (runtime)   |
+| `FRONTEND_SENTRY_ENABLE_LOGS`    | no         | `true`           | Enable frontend Sentry logs (runtime)    |
+| `FRONTEND_SENTRY_ENABLE_METRICS` | no         | `true`           | Enable frontend Sentry metrics (runtime) |
+| `FRONTEND_SENTRY_REPLAYS_SESSION_SAMPLE_RATE` | no | `0.1`       | Frontend replay session sample (runtime) |
+| `FRONTEND_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE` | no | `1.0`      | Frontend replay-on-error sample (runtime) |
 | `VITE_SENTRY_DSN`                | no         | -                | Frontend Sentry DSN                      |
 | `VITE_SENTRY_ENVIRONMENT`        | no         | `development`    | Frontend Sentry environment              |
 | `VITE_SENTRY_RELEASE`            | no         | `atrium@0.1.0`   | Frontend release identifier              |
@@ -143,6 +151,7 @@ pnpm start
 ```
 
 - Backend Sentry initializes via Node ESM preload (`--import ./dist/server/sentry.server.js`) before Fastify boot.
+- Frontend Sentry runtime settings are fetched from `/api/runtime-config` at app startup. `FRONTEND_SENTRY_*` variables are preferred, with `VITE_SENTRY_*` as fallback.
 
 ## Security Notes
 

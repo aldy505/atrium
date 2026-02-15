@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import {
   checkSession,
   deleteObject,
@@ -29,9 +29,11 @@ export const App = () => {
   const [currentPrefix, setCurrentPrefix] = useState("");
   const [selectedFile, setSelectedFile] = useState<FileEntry | null>(null);
   const [filter, setFilter] = useState("");
+  const [autoLoadOnScroll, setAutoLoadOnScroll] = useState(true);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -68,11 +70,92 @@ export const App = () => {
     }
   }, [bucketsQuery.data, selectedBucket]);
 
-  const objectsQuery = useQuery({
+  const objectsQuery = useInfiniteQuery({
     queryKey: ["objects", selectedBucket, currentPrefix],
-    queryFn: () => getObjects(selectedBucket, currentPrefix),
+    queryFn: ({ pageParam }) =>
+      getObjects(selectedBucket, currentPrefix, {
+        continuationToken: pageParam || undefined,
+        maxKeys: 200,
+      }),
+    initialPageParam: "",
+    getNextPageParam: (lastPage) => lastPage.nextContinuationToken ?? undefined,
     enabled: isAuthenticated && Boolean(selectedBucket),
   });
+
+  const objectsData = useMemo(() => {
+    if (!objectsQuery.data?.pages.length) {
+      return null;
+    }
+
+    const foldersByKey = new Map<string, (typeof objectsQuery.data.pages)[number]["folders"][number]>();
+    const filesByKey = new Map<string, (typeof objectsQuery.data.pages)[number]["files"][number]>();
+
+    for (const page of objectsQuery.data.pages) {
+      for (const folder of page.folders) {
+        foldersByKey.set(folder.key, folder);
+      }
+
+      for (const file of page.files) {
+        filesByKey.set(file.key, file);
+      }
+    }
+
+    const firstPage = objectsQuery.data.pages[0];
+    const lastPage = objectsQuery.data.pages[objectsQuery.data.pages.length - 1];
+
+    return {
+      bucket: firstPage.bucket,
+      prefix: firstPage.prefix,
+      folders: Array.from(foldersByKey.values()),
+      files: Array.from(filesByKey.values()),
+      isTruncated: lastPage.isTruncated,
+      nextContinuationToken: lastPage.nextContinuationToken,
+    };
+  }, [objectsQuery.data]);
+
+  const canLoadMore = Boolean(objectsData?.isTruncated && objectsQuery.hasNextPage);
+
+  useEffect(() => {
+    if (!autoLoadOnScroll || !canLoadMore || objectsQuery.isFetchingNextPage) {
+      return;
+    }
+
+    const target = loadMoreSentinelRef.current;
+
+    if (!target) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+
+        if (
+          entry?.isIntersecting &&
+          objectsQuery.hasNextPage &&
+          !objectsQuery.isFetchingNextPage
+        ) {
+          void objectsQuery.fetchNextPage();
+        }
+      },
+      {
+        root: null,
+        rootMargin: "220px 0px",
+      },
+    );
+
+    observer.observe(target);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [
+    autoLoadOnScroll,
+    canLoadMore,
+    objectsQuery.fetchNextPage,
+    objectsQuery.hasNextPage,
+    objectsQuery.isFetchingNextPage,
+  ]);
 
   const loginMutation = useMutation({
     mutationFn: ({
@@ -155,12 +238,12 @@ export const App = () => {
   });
 
   const statusText = useMemo(() => {
-    if (objectsQuery.isFetching) {
+    if (objectsQuery.isLoading) {
       return "Loading objects...";
     }
 
     return null;
-  }, [objectsQuery.isFetching]);
+  }, [objectsQuery.isLoading]);
 
   const objectsErrorMessage = useMemo(() => {
     if (!objectsQuery.isError) {
@@ -239,6 +322,14 @@ export const App = () => {
             />
           </div>
           <div className="toolbar-actions">
+            <label className="auto-load-toggle">
+              <input
+                type="checkbox"
+                checked={autoLoadOnScroll}
+                onChange={(event) => setAutoLoadOnScroll(event.target.checked)}
+              />
+              <span>Auto-load on scroll</span>
+            </label>
             <input
               type="search"
               value={filter}
@@ -278,10 +369,10 @@ export const App = () => {
             </div>
           ) : null}
 
-          {!statusText && !objectsErrorMessage && objectsQuery.data ? (
+          {!statusText && !objectsErrorMessage && objectsData ? (
             <ObjectTable
-              folders={objectsQuery.data.folders}
-              files={objectsQuery.data.files}
+              folders={objectsData.folders}
+              files={objectsData.files}
               filter={filter}
               onOpenFolder={(key) => {
                 setCurrentPrefix(key);
@@ -294,6 +385,21 @@ export const App = () => {
                 window.open(getDownloadUrl(selectedBucket, key), "_blank");
               }}
             />
+          ) : null}
+
+          {!statusText && !objectsErrorMessage && canLoadMore ? (
+            <>
+              <div className="table-pagination">
+                <button
+                  type="button"
+                  onClick={() => void objectsQuery.fetchNextPage()}
+                  disabled={objectsQuery.isFetchingNextPage}
+                >
+                  {objectsQuery.isFetchingNextPage ? "Loading more..." : "Load more"}
+                </button>
+              </div>
+              <div ref={loadMoreSentinelRef} className="table-pagination-sentinel" aria-hidden="true" />
+            </>
           ) : null}
 
           {globalError ? (

@@ -23,6 +23,9 @@ importers:
       '@fastify/static':
         specifier: ^8.0.1
         version: 8.3.0
+      '@fontsource-variable/work-sans':
+        specifier: ^5.2.8
+        version: 5.2.8
       '@sentry/node':
         specifier: ^10.38.0
         version: 10.38.0
@@ -680,6 +683,9 @@ packages:
 
   '@fastify/static@8.3.0':
     resolution: {integrity: sha512-yKxviR5PH1OKNnisIzZKmgZSus0r2OZb8qCSbqmw34aolT4g3UlzYfeBRym+HJ1J471CR8e2ldNub4PubD1coA==}
+
+  '@fontsource-variable/work-sans@5.2.8':
+    resolution: {integrity: sha512-8uWtTt0/B5NxGie9xUVD5y5Ch4Q+Hy7kFYKtUpwYbzSAgJEoaMxT8rMnfnK7zfAYSLC8GnGO1/tXrFtKIYYQVQ==}
 
   '@ioredis/commands@1.5.0':
     resolution: {integrity: sha512-eUgLqrMf8nJkZxT24JvVRrQya1vZkQh8BBeYNwGDqa5I0VUi8ACx7uFvAaLxintokpTenkK6DASvo/bvNbBGow==}
@@ -3101,6 +3107,8 @@ snapshots:
       fastify-plugin: 5.1.0
       fastq: 1.20.1
       glob: 11.1.0
+
+  '@fontsource-variable/work-sans@5.2.8': {}
 
   '@ioredis/commands@1.5.0': {}
 

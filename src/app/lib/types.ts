@@ -16,6 +16,9 @@ export type FileEntry = {
 export type ListObjectsResponse = {
   bucket: string;
   prefix: string;
+  continuationToken?: string;
+  nextContinuationToken?: string;
+  isTruncated: boolean;
   folders: FolderEntry[];
   files: FileEntry[];
 };

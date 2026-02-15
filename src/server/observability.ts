@@ -43,6 +43,10 @@ const sanitizeAttributes = (value: unknown): unknown => {
 };
 
 const sentryEnabled = (): boolean => Boolean(config.SENTRY_DSN);
+const sentryMetricsEnabled = (): boolean => sentryEnabled() && config.SENTRY_ENABLE_METRICS;
+
+let authSuccessTotal = 0;
+let authFailureTotal = 0;
 
 type SentryLogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal";
 
@@ -57,6 +61,67 @@ export const sentryLog = (
 
   const sanitized = sanitizeAttributes(attributes) as Record<string, unknown> | undefined;
   Sentry.logger[level](message, sanitized);
+};
+
+export const sentryCountMetric = (
+  name: string,
+  value: number,
+  attributes?: Record<string, unknown>,
+): void => {
+  if (!sentryMetricsEnabled()) {
+    return;
+  }
+
+  const sanitized = sanitizeAttributes(attributes) as Record<string, string | number | boolean>;
+  Sentry.metrics.count(name, value, {
+    attributes: sanitized,
+  });
+};
+
+export const sentryGaugeMetric = (
+  name: string,
+  value: number,
+  attributes?: Record<string, unknown>,
+): void => {
+  if (!sentryMetricsEnabled()) {
+    return;
+  }
+
+  const sanitized = sanitizeAttributes(attributes) as Record<string, string | number | boolean>;
+  Sentry.metrics.gauge(name, value, {
+    attributes: sanitized,
+  });
+};
+
+export const sentryDistributionMetric = (
+  name: string,
+  value: number,
+  unit: "none" | "millisecond" = "none",
+  attributes?: Record<string, unknown>,
+): void => {
+  if (!sentryMetricsEnabled()) {
+    return;
+  }
+
+  const sanitized = sanitizeAttributes(attributes) as Record<string, string | number | boolean>;
+  Sentry.metrics.distribution(name, value, {
+    unit,
+    attributes: sanitized,
+  });
+};
+
+export const recordAuthResultGauge = (
+  isSuccess: boolean,
+  attributes?: Record<string, unknown>,
+): void => {
+  if (isSuccess) {
+    authSuccessTotal += 1;
+  } else {
+    authFailureTotal += 1;
+  }
+
+  sentryGaugeMetric("auth.success", authSuccessTotal, attributes);
+  sentryGaugeMetric("auth.failure", authFailureTotal, attributes);
 };
 
 export const registerObservabilityHooks = (app: FastifyInstance): void => {
@@ -81,9 +146,7 @@ export const registerObservabilityHooks = (app: FastifyInstance): void => {
       route: getRouteName(request),
     }) as Record<string, string | number | boolean>;
 
-    Sentry.metrics.count("http.requests.total", 1, {
-      attributes: metricAttributes,
-    });
+    sentryCountMetric("http.requests.total", 1, metricAttributes);
 
     done();
   });
@@ -111,15 +174,10 @@ export const registerObservabilityHooks = (app: FastifyInstance): void => {
       status_code: reply.statusCode,
     }) as Record<string, string | number | boolean>;
 
-    Sentry.metrics.distribution("http.server.duration", durationMs, {
-      unit: "millisecond",
-      attributes,
-    });
+    sentryDistributionMetric("http.server.duration", durationMs, "millisecond", attributes);
 
     if (reply.statusCode >= 500) {
-      Sentry.metrics.count("http.requests.errors", 1, {
-        attributes,
-      });
+      sentryCountMetric("http.requests.errors", 1, attributes);
     }
 
     done();

@@ -19,6 +19,7 @@
     "@fastify/cors": "^10.0.1",
     "@fastify/multipart": "^9.0.3",
     "@fastify/static": "^8.0.1",
+    "@fontsource-variable/work-sans": "^5.2.8",
     "@sentry/node": "^10.38.0",
     "@sentry/react": "^10.38.0",
     "@tanstack/react-query": "^5.62.2",

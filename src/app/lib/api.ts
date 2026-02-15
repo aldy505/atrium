@@ -44,8 +44,21 @@ export const getBuckets = async (): Promise<string[]> => {
   return body.buckets;
 };
 
-export const getObjects = async (bucket: string, prefix: string): Promise<ListObjectsResponse> => {
+export const getObjects = async (
+  bucket: string,
+  prefix: string,
+  options?: { continuationToken?: string; maxKeys?: number },
+): Promise<ListObjectsResponse> => {
   const params = new URLSearchParams({ bucket, prefix });
+
+  if (options?.continuationToken) {
+    params.set("continuationToken", options.continuationToken);
+  }
+
+  if (options?.maxKeys) {
+    params.set("maxKeys", String(options.maxKeys));
+  }
+
   const response = await fetch(`/api/s3/objects?${params.toString()}`, {
     credentials: "include",
   });
