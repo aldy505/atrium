@@ -17,7 +17,7 @@
 Co-Authored-By: (the agent model's name and attribution byline)
 ```
 
-Example: `Co-Authored-By: Claude Sonnet 4 <noreply@example.com>`
+Example: `Co-Authored-By: Claude Sonnet 4 <noreply@anthropic.com>`
 
 ## Key Conventions
 

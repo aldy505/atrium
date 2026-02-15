@@ -113,3 +113,34 @@ Last updated: 2026-02-15
   - confirm backend error events, traces, logs, and metrics ingestion
   - confirm frontend events and traces ingestion
 - Optional naming harmonization for HTTP metrics if dashboard queries require stricter consistency.
+
+## 10) 2026-02-15 Follow-up: Pagination, Runtime Sentry Config, and Metrics
+
+- Implemented S3 object listing pagination end-to-end:
+  - Backend `/api/s3/objects` now accepts `continuationToken` and `maxKeys`.
+  - S3 listing in `src/server/s3.ts` returns `nextContinuationToken` and `isTruncated`.
+  - Frontend switched to React Query `useInfiniteQuery` for paged loading.
+- Added optional auto-loading via `IntersectionObserver` with manual **Load more** fallback.
+- Added large-dataset validation by generating and verifying `5000` objects in MinIO.
+
+## 11) 2026-02-15 Follow-up: Runtime Frontend Sentry Configuration
+
+- Added backend endpoint `GET /api/runtime-config` to expose safe frontend telemetry settings.
+- Frontend Sentry bootstrap now fetches runtime config at startup before rendering the app.
+- Runtime env precedence is `FRONTEND_SENTRY_*` then `VITE_SENTRY_*` fallback.
+
+## 12) 2026-02-15 Follow-up: Upstream S3/Auth Metrics
+
+- Added shared metric helpers in `src/server/observability.ts` for count, gauge, distribution.
+- Added S3 latency distributions using key pattern `s3.(operation).latency`:
+  - `s3.list_buckets.latency`
+  - `s3.list_objects_v2.latency`
+  - `s3.put_object.latency`
+  - `s3.get_object.latency`
+  - `s3.delete_object.latency`
+- Added S3 transfer activity gauges:
+  - `s3.upload.files_in_flight`
+  - `s3.download.files_in_flight`
+- Added auth result gauges in auth/session paths:
+  - `auth.success`
+  - `auth.failure`

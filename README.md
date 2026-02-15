@@ -153,6 +153,45 @@ pnpm start
 - Backend Sentry initializes via Node ESM preload (`--import ./dist/server/sentry.server.js`) before Fastify boot.
 - Frontend Sentry runtime settings are fetched from `/api/runtime-config` at app startup. `FRONTEND_SENTRY_*` variables are preferred, with `VITE_SENTRY_*` as fallback.
 
+## Large Bucket Performance
+
+- Object listing is cursor-paginated server-side via S3 `ListObjectsV2` (`maxKeys` + continuation token).
+- Frontend requests objects in pages of `200` and merges pages in memory.
+- The object table supports:
+  - Manual pagination with **Load more**
+  - Optional **Auto-load on scroll** (IntersectionObserver)
+- For stress testing, this repository has been validated with a generated dataset of `5000` objects in MinIO.
+
+## Sentry Metrics
+
+### Backend HTTP
+
+- `http.requests.total` (count)
+- `http.server.duration` (distribution, milliseconds)
+- `http.requests.errors` (count)
+
+### Upstream S3 Metrics
+
+- Latency per operation (distribution, milliseconds):
+  - `s3.list_buckets.latency`
+  - `s3.list_objects_v2.latency`
+  - `s3.put_object.latency`
+  - `s3.get_object.latency`
+  - `s3.delete_object.latency`
+- Transfer activity gauges:
+  - `s3.upload.files_in_flight`
+  - `s3.download.files_in_flight`
+
+### Authentication Gauges
+
+- `auth.success`
+- `auth.failure`
+
+Notes:
+
+- Auth gauges represent process-local totals and reset on server restart.
+- Frontend emits `frontend.app.boot` at initialization when frontend Sentry is enabled.
+
 ## Security Notes
 
 - Credentials are never persisted in browser storage.

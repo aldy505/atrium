@@ -5,8 +5,11 @@ Last updated: 2026-02-15
 ## Current Status
 
 - App is implemented end-to-end (frontend + backend + Redis sessions + S3 flows).
-- Sentry integration is in place for frontend and backend.
-- TypeScript typecheck is currently passing.
+- Cursor pagination for object listing is implemented across API + UI.
+- UI supports both manual pagination (**Load more**) and optional auto-load on scroll.
+- Frontend Sentry is initialized at runtime via `/api/runtime-config` (with Vite env fallback).
+- Backend S3/auth metric instrumentation is in place.
+- TypeScript typecheck and production build are passing.
 
 ## Important Implementation Decisions
 
@@ -14,7 +17,9 @@ Last updated: 2026-02-15
 - S3 provider settings are backend env-controlled only.
 - Session auth uses secure cookie token + Redis credential mapping.
 - Backend Sentry init uses ESM preload module (`--import`) before server startup.
+- Frontend Sentry config is runtime-resolved from backend (`FRONTEND_SENTRY_*` preferred).
 - Metrics use direct `Sentry.metrics.*` calls.
+- S3 list API is paginated (`maxKeys`, continuation tokens), default page size `200`.
 
 ## Key Entrypoints
 
@@ -25,6 +30,10 @@ Last updated: 2026-02-15
 
 ## Recommended Next Checks
 
-1. Run app locally and validate telemetry in Sentry UI.
-2. Confirm dashboards/alerts use current metric names.
-3. Run `pnpm build` for production artifact confirmation.
+1. Run app and navigate very large buckets (5k+) with auto-load both on and off.
+2. Validate Sentry ingestion for:
+	- `s3.*.latency`
+	- `s3.upload.files_in_flight`
+	- `s3.download.files_in_flight`
+	- `auth.success`, `auth.failure`
+3. Confirm runtime frontend Sentry config values served by `/api/runtime-config` in target environment.
