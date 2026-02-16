@@ -156,6 +156,10 @@ pnpm start
 ## Large Bucket Performance
 
 - Object listing is cursor-paginated server-side via S3 `ListObjectsV2` (`maxKeys` + continuation token).
+- Server-side folder/page listing cache is stored in Redis and keyed by session + bucket + prefix + continuation token + page size.
+- Cached list responses use TTL-based expiration (default `300s`) and can be toggled with `S3_LIST_CACHE_ENABLED`.
+- Cache invalidation runs after upload/delete operations with default `targeted` mode (prefix + parent prefixes), or `bucket` mode via `S3_LIST_CACHE_INVALIDATION_MODE`.
+- Optional diagnostics header `X-Atrium-S3-List-Cache` reports `HIT`, `MISS`, or `BYPASS` when `S3_LIST_CACHE_INCLUDE_HEADERS=true`.
 - Frontend requests objects in pages of `200` and merges pages in memory.
 - The object table supports:
   - Manual pagination with **Load more**
