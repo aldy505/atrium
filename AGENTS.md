@@ -39,6 +39,13 @@ If you cannot find your model's email, use `noreply@agents.md`.
 git commit -m "feat: short summary" -m "Detail paragraph one" -m "Detail paragraph two" -m "Co-Authored-By: GPT-5.3-Codex <noreply@agents.md>"
 ```
 
+## Branch Naming Convention
+
+- Branch names should follow `<user>/<category>/<content>`.
+- Examples:
+	- `agents/docs/agent-guidelines-windows-and-quality`
+	- `aldy505/feat/feature-flag-registration`
+
 ## Key Conventions
 
 - Stack: React + Fastify + TypeScript in one repo
