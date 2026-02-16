@@ -145,7 +145,29 @@ Last updated: 2026-02-16
   - `auth.success`
   - `auth.failure`
 
-## 13) 2026-02-16 Follow-up: Audit Logging (Filesystem/Loki)
+## 13) 2026-02-16 Follow-up: Redis Folder-List Cache (Issue #5)
+
+- Implemented Redis-backed server-side cache for `GET /api/s3/objects`.
+- Cache key shape is session-scoped and pagination-aware:
+  - `sessionToken + bucket + prefix + continuationToken + maxKeys`
+- Added cache configuration in server env parsing (`src/server/config.ts`):
+  - `S3_LIST_CACHE_ENABLED` (default `true`)
+  - `S3_LIST_CACHE_TTL_SECONDS` (default `300`)
+  - `S3_LIST_CACHE_INVALIDATION_MODE` (`targeted` or `bucket`, default `targeted`)
+  - `S3_LIST_CACHE_INCLUDE_HEADERS` (default `true`)
+- Added cache operations in `src/server/session.ts`:
+  - read/write cached list responses with TTL
+  - invalidate by bucket
+  - invalidate by targeted prefixes/ancestor chain
+- Added cache hit/miss and lookup/store/invalidation instrumentation in `src/server/routes.ts` via existing Sentry metric helpers.
+- Added optional response header `X-Atrium-S3-List-Cache` with values `HIT`, `MISS`, `BYPASS`.
+- Wired invalidation after existing mutations:
+  - upload (`POST /api/s3/upload`)
+  - delete object (`DELETE /api/s3/object`)
+  - delete prefix (`DELETE /api/s3/prefix`)
+- Updated docs in `.env.example` and `README.md` for cache envs and behavior.
+
+## 14) 2026-02-16 Follow-up: Audit Logging (Filesystem/Loki)
 
 - Added audit logging abstraction with pluggable sinks:
   - Filesystem CSV append (daily `audit-log_YYYYMMDD.csv` files)
