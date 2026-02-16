@@ -183,6 +183,7 @@ export const registerS3Routes = (app: FastifyInstance): void => {
   });
 
   app.get("/api/s3/objects", { preHandler: requireSession }, async (request, reply) => {
+    const startedAt = Date.now();
     const parsed = listObjectsSchema.safeParse(request.query);
 
     if (!parsed.success) {
