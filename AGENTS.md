@@ -11,6 +11,12 @@
 - `pnpm run build`
 - `pnpm run start`
 
+## Required Quality Checks
+
+- Run `pnpm run fmt` before committing code changes.
+- Run `pnpm run lint:fix` before committing code changes.
+- Keep `pnpm run typecheck` and `pnpm run build` as validation gates.
+
 ## Commit Attribution
 
 - AI commits MUST include:
@@ -22,6 +28,23 @@ Co-Authored-By: (the agent model's name and attribution byline)
 Example: `Co-Authored-By: Claude Sonnet 4 <noreply@anthropic.com>`
 
 If you cannot find your model's email, use `noreply@agents.md`.
+
+## Commit Message Notes (Windows)
+
+- On Windows shells, avoid newline escape sequences like `\n` inside commit message arguments.
+- Prefer multiple `-m` flags for multi-paragraph commit messages.
+- Example:
+
+```bash
+git commit -m "feat: short summary" -m "Detail paragraph one" -m "Detail paragraph two" -m "Co-Authored-By: GPT-5.3-Codex <noreply@agents.md>"
+```
+
+## Branch Naming Convention
+
+- Branch names should follow `<user>/<category>/<content>`.
+- Examples:
+	- `agents/docs/agent-guidelines-windows-and-quality`
+	- `aldy505/feat/feature-flag-registration`
 
 ## Key Conventions
 
