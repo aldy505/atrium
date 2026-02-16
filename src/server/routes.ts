@@ -205,24 +205,25 @@ export const registerS3Routes = (app: FastifyInstance): void => {
       maxKeys,
     );
     const storeStartedAt = Date.now();
-    try {
-      await setCachedListObjectsResponse(
-        request.sessionToken,
-        bucket,
-        prefix,
-        continuationToken,
-        maxKeys,
-        response,
-      );
-      sentryDistributionMetric(
-        "cache.s3_list.store.latency",
-        Date.now() - storeStartedAt,
-        "millisecond",
-        metricAttributes,
-      );
-    } catch {
-      sentryCountMetric("cache.s3_list.store.errors", 1, metricAttributes);
-    }
+    void setCachedListObjectsResponse(
+      request.sessionToken,
+      bucket,
+      prefix,
+      continuationToken,
+      maxKeys,
+      response,
+    )
+      .then(() => {
+        sentryDistributionMetric(
+          "cache.s3_list.store.latency",
+          Date.now() - storeStartedAt,
+          "millisecond",
+          metricAttributes,
+        );
+      })
+      .catch(() => {
+        sentryCountMetric("cache.s3_list.store.errors", 1, metricAttributes);
+      });
     return response;
   });
 
@@ -244,9 +245,11 @@ export const registerS3Routes = (app: FastifyInstance): void => {
     const key = `${query.prefix}${file.filename}`;
 
     await uploadObject(request.sessionCredentials!, query.bucket, key, buffer, file.mimetype);
-    await invalidateListCacheForMutation(request.sessionToken, query.bucket, {
+    void invalidateListCacheForMutation(request.sessionToken, query.bucket, {
       type: "object",
       key,
+    }).catch((error) => {
+      console.error("Failed to invalidate S3 list cache after upload", error);
     });
 
     return { ok: true, key };
@@ -331,9 +334,11 @@ export const registerS3Routes = (app: FastifyInstance): void => {
     }
 
     await deleteObject(request.sessionCredentials!, parsed.data.bucket, parsed.data.key);
-    await invalidateListCacheForMutation(request.sessionToken, parsed.data.bucket, {
+    void invalidateListCacheForMutation(request.sessionToken, parsed.data.bucket, {
       type: "object",
       key: parsed.data.key,
+    }).catch((error) => {
+      console.error("Failed to invalidate S3 list cache after delete object", error);
     });
     return { ok: true };
   });
@@ -350,9 +355,11 @@ export const registerS3Routes = (app: FastifyInstance): void => {
       parsed.data.bucket,
       parsed.data.prefix,
     );
-    await invalidateListCacheForMutation(request.sessionToken, parsed.data.bucket, {
+    void invalidateListCacheForMutation(request.sessionToken, parsed.data.bucket, {
       type: "prefix",
       prefix: parsed.data.prefix,
+    }).catch((error) => {
+      console.error("Failed to invalidate S3 list cache after delete prefix", error);
     });
     return { ok: true, deleted };
   });

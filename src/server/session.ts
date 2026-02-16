@@ -18,8 +18,12 @@ const decodeSegment = (value: string): string | null => {
   }
 };
 
+const hashSessionToken = (token: string): string => {
+  return crypto.createHash("sha256").update(token).digest("hex");
+};
+
 const listCacheBucketNamespace = (sessionToken: string, bucket: string): string => {
-  return `${listCacheKeyPrefix}:${sessionToken}:${encodeSegment(bucket)}`;
+  return `${listCacheKeyPrefix}:${hashSessionToken(sessionToken)}:${encodeSegment(bucket)}`;
 };
 
 const listCacheKey = (
@@ -57,7 +61,8 @@ const deleteKeys = async (keys: string[]): Promise<number> => {
 
   for (let index = 0; index < keys.length; index += 500) {
     const batch = keys.slice(index, index + 500);
-    deleted += await redis.del(...batch);
+    // Prefer UNLINK for non-blocking deletes
+    deleted += await redis.unlink(...batch);
   }
 
   return deleted;
