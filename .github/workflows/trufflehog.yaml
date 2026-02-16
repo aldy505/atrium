@@ -23,15 +23,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-      - name: TruffleHog OSS
-        id: trufflehog
+      - name: Secret Scanning
         uses: trufflesecurity/trufflehog@main
-        continue-on-error: true
         with:
-          path: ./
-          base: "${{ github.event.repository.default_branch }}"
-          head: HEAD
-          extra_args: --debug --only-verified
-      - name: Scan Results Status
-        if: steps.trufflehog.outcome == 'failure'
-        run: exit 1
+          extra_args: --results=verified,unknown
