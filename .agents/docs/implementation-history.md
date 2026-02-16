@@ -166,3 +166,14 @@ Last updated: 2026-02-16
   - delete object (`DELETE /api/s3/object`)
   - delete prefix (`DELETE /api/s3/prefix`)
 - Updated docs in `.env.example` and `README.md` for cache envs and behavior.
+
+## 14) 2026-02-16 Follow-up: Audit Logging (Filesystem/Loki)
+
+- Added audit logging abstraction with pluggable sinks:
+  - Filesystem CSV append (daily `audit-log_YYYYMMDD.csv` files)
+  - Loki push (`POST /loki/api/v1/push`)
+- Implemented audit event emission for:
+  - Auth/session lifecycle (`auth.login`, `auth.logout`, `auth.me`, `auth.session`)
+  - All S3 routes (list, upload, download, preview, metadata, delete)
+- Hashes access key IDs with SHA-256 before logging (no plaintext credentials).
+- Added env configuration for audit logging and retention (`AUDIT_LOG_*`).

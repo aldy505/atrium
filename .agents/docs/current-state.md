@@ -10,6 +10,7 @@ Last updated: 2026-02-16
 - UI supports both manual pagination (**Load more**) and optional auto-load on scroll.
 - Frontend Sentry is initialized at runtime via `/api/runtime-config` (with Vite env fallback).
 - Backend S3/auth metric instrumentation is in place.
+- Audit logging is in place with filesystem CSV or Loki sinks.
 - TypeScript typecheck and production build are passing.
 
 ## Important Implementation Decisions
@@ -21,6 +22,7 @@ Last updated: 2026-02-16
 - Frontend Sentry config is runtime-resolved from backend (`FRONTEND_SENTRY_*` preferred).
 - Metrics use direct `Sentry.metrics.*` calls.
 - S3 list API is paginated (`maxKeys`, continuation tokens), default page size `200`.
+- Audit logs never store plaintext credentials; access key IDs are SHA-256 hashed.
 - S3 list cache key includes session token + bucket + prefix + continuation token + `maxKeys`.
 - Cache invalidation runs after upload/delete with env-selectable mode:
   - `targeted` (default): parent-prefix lineage (+ deleted subtree for prefix delete)
@@ -46,3 +48,4 @@ Last updated: 2026-02-16
    - `X-Atrium-S3-List-Cache: MISS` on first request
    - `X-Atrium-S3-List-Cache: HIT` on repeated request
    - `X-Atrium-S3-List-Cache: BYPASS` when cache disabled or unavailable
+5. Verify audit log output in filesystem or Loki based on `AUDIT_LOG_SINK`.

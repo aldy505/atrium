@@ -62,39 +62,43 @@ You can change these in `.env`.
 
 ## Environment Variables
 
-| Variable                                       | Required   | Default          | Description                               |
-| ---------------------------------------------- | ---------- | ---------------- | ----------------------------------------- |
-| `NODE_ENV`                                     | no         | `development`    | Runtime environment                       |
-| `PORT`                                         | no         | `3000`           | API/web app port                          |
-| `REDIS_URL`                                    | yes        | -                | Redis connection URL                      |
-| `SESSION_TTL_SECONDS`                          | no         | `86400`          | Session TTL in seconds                    |
-| `COOKIE_NAME`                                  | no         | `atrium_session` | Session cookie name                       |
-| `S3_ENDPOINT`                                  | yes        | -                | S3-compatible endpoint URL                |
-| `S3_REGION`                                    | yes        | -                | S3 region string                          |
-| `S3_FORCE_PATH_STYLE`                          | no         | `true`           | Use path-style S3 URLs (needed by MinIO)  |
-| `MAX_UPLOAD_SIZE_MB`                           | no         | `100`            | Per-file upload size limit                |
-| `SENTRY_DSN`                                   | no         | -                | Backend Sentry DSN                        |
-| `SENTRY_ENVIRONMENT`                           | no         | `development`    | Backend Sentry environment                |
-| `SENTRY_RELEASE`                               | no         | `atrium@0.1.0`   | Backend release identifier                |
-| `SENTRY_TRACES_SAMPLE_RATE`                    | no         | `0.1`            | Backend tracing sample rate               |
-| `SENTRY_ENABLE_LOGS`                           | no         | `true`           | Enable backend Sentry logs                |
-| `SENTRY_ENABLE_METRICS`                        | no         | `true`           | Enable backend Sentry metrics             |
-| `FRONTEND_SENTRY_DSN`                          | no         | -                | Frontend Sentry DSN (runtime via API)     |
-| `FRONTEND_SENTRY_ENVIRONMENT`                  | no         | `NODE_ENV`       | Frontend Sentry environment (runtime)     |
-| `FRONTEND_SENTRY_RELEASE`                      | no         | -                | Frontend release identifier (runtime)     |
-| `FRONTEND_SENTRY_TRACES_SAMPLE_RATE`           | no         | `0.1`            | Frontend tracing sample rate (runtime)    |
-| `FRONTEND_SENTRY_ENABLE_LOGS`                  | no         | `true`           | Enable frontend Sentry logs (runtime)     |
-| `FRONTEND_SENTRY_ENABLE_METRICS`               | no         | `true`           | Enable frontend Sentry metrics (runtime)  |
-| `FRONTEND_SENTRY_REPLAYS_SESSION_SAMPLE_RATE`  | no         | `0.1`            | Frontend replay session sample (runtime)  |
-| `FRONTEND_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE` | no         | `1.0`            | Frontend replay-on-error sample (runtime) |
-| `VITE_SENTRY_DSN`                              | no         | -                | Frontend Sentry DSN                       |
-| `VITE_SENTRY_ENVIRONMENT`                      | no         | `development`    | Frontend Sentry environment               |
-| `VITE_SENTRY_RELEASE`                          | no         | `atrium@0.1.0`   | Frontend release identifier               |
-| `VITE_SENTRY_TRACES_SAMPLE_RATE`               | no         | `0.1`            | Frontend tracing sample rate              |
-| `VITE_SENTRY_ENABLE_LOGS`                      | no         | `true`           | Enable frontend Sentry logs               |
-| `VITE_SENTRY_ENABLE_METRICS`                   | no         | `true`           | Enable frontend Sentry metrics            |
-| `MINIO_ROOT_USER`                              | local only | `minioadmin`     | Local MinIO root access key               |
-| `MINIO_ROOT_PASSWORD`                          | local only | `minioadmin`     | Local MinIO root secret                   |
+| Variable                                       | Required   | Default          | Description                                   |
+| ---------------------------------------------- | ---------- | ---------------- | --------------------------------------------- |
+| `NODE_ENV`                                     | no         | `development`    | Runtime environment                           |
+| `PORT`                                         | no         | `3000`           | API/web app port                              |
+| `REDIS_URL`                                    | yes        | -                | Redis connection URL                          |
+| `SESSION_TTL_SECONDS`                          | no         | `86400`          | Session TTL in seconds                        |
+| `COOKIE_NAME`                                  | no         | `atrium_session` | Session cookie name                           |
+| `S3_ENDPOINT`                                  | yes        | -                | S3-compatible endpoint URL                    |
+| `S3_REGION`                                    | yes        | -                | S3 region string                              |
+| `S3_FORCE_PATH_STYLE`                          | no         | `true`           | Use path-style S3 URLs (needed by MinIO)      |
+| `MAX_UPLOAD_SIZE_MB`                           | no         | `100`            | Per-file upload size limit                    |
+| `AUDIT_LOG_SINK`                               | no         | `filesystem`     | Audit log sink (`filesystem`, `loki`, `none`) |
+| `AUDIT_LOG_DIR`                                | no         | `audit-logs`     | Filesystem audit log directory                |
+| `AUDIT_LOG_RETENTION_DAYS`                     | no         | `30`             | Filesystem audit log retention (days)         |
+| `AUDIT_LOG_LOKI_URL`                           | no         | -                | Loki push endpoint (required for `loki`)      |
+| `SENTRY_DSN`                                   | no         | -                | Backend Sentry DSN                            |
+| `SENTRY_ENVIRONMENT`                           | no         | `development`    | Backend Sentry environment                    |
+| `SENTRY_RELEASE`                               | no         | `atrium@0.1.0`   | Backend release identifier                    |
+| `SENTRY_TRACES_SAMPLE_RATE`                    | no         | `0.1`            | Backend tracing sample rate                   |
+| `SENTRY_ENABLE_LOGS`                           | no         | `true`           | Enable backend Sentry logs                    |
+| `SENTRY_ENABLE_METRICS`                        | no         | `true`           | Enable backend Sentry metrics                 |
+| `FRONTEND_SENTRY_DSN`                          | no         | -                | Frontend Sentry DSN (runtime via API)         |
+| `FRONTEND_SENTRY_ENVIRONMENT`                  | no         | `NODE_ENV`       | Frontend Sentry environment (runtime)         |
+| `FRONTEND_SENTRY_RELEASE`                      | no         | -                | Frontend release identifier (runtime)         |
+| `FRONTEND_SENTRY_TRACES_SAMPLE_RATE`           | no         | `0.1`            | Frontend tracing sample rate (runtime)        |
+| `FRONTEND_SENTRY_ENABLE_LOGS`                  | no         | `true`           | Enable frontend Sentry logs (runtime)         |
+| `FRONTEND_SENTRY_ENABLE_METRICS`               | no         | `true`           | Enable frontend Sentry metrics (runtime)      |
+| `FRONTEND_SENTRY_REPLAYS_SESSION_SAMPLE_RATE`  | no         | `0.1`            | Frontend replay session sample (runtime)      |
+| `FRONTEND_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE` | no         | `1.0`            | Frontend replay-on-error sample (runtime)     |
+| `VITE_SENTRY_DSN`                              | no         | -                | Frontend Sentry DSN                           |
+| `VITE_SENTRY_ENVIRONMENT`                      | no         | `development`    | Frontend Sentry environment                   |
+| `VITE_SENTRY_RELEASE`                          | no         | `atrium@0.1.0`   | Frontend release identifier                   |
+| `VITE_SENTRY_TRACES_SAMPLE_RATE`               | no         | `0.1`            | Frontend tracing sample rate                  |
+| `VITE_SENTRY_ENABLE_LOGS`                      | no         | `true`           | Enable frontend Sentry logs                   |
+| `VITE_SENTRY_ENABLE_METRICS`                   | no         | `true`           | Enable frontend Sentry metrics                |
+| `MINIO_ROOT_USER`                              | local only | `minioadmin`     | Local MinIO root access key                   |
+| `MINIO_ROOT_PASSWORD`                          | local only | `minioadmin`     | Local MinIO root secret                       |
 
 ## Configure for Different Providers
 
