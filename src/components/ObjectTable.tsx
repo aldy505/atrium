@@ -29,6 +29,43 @@ const formatSize = (size: number): string => {
   return `${value.toFixed(1)} ${unit}`;
 };
 
+const RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+
+const formatModified = (lastModified?: string): string => {
+  if (!lastModified) {
+    return "-";
+  }
+
+  const date = new Date(lastModified);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const diffMs = date.getTime() - Date.now();
+
+  if (Math.abs(diffMs) > RECENT_WINDOW_MS) {
+    return date.toLocaleString();
+  }
+
+  const absMs = Math.abs(diffMs);
+
+  if (absMs < 60_000) {
+    return relativeTimeFormatter.format(Math.round(diffMs / 1000), "second");
+  }
+
+  if (absMs < 3_600_000) {
+    return relativeTimeFormatter.format(Math.round(diffMs / 60_000), "minute");
+  }
+
+  if (absMs < 86_400_000) {
+    return relativeTimeFormatter.format(Math.round(diffMs / 3_600_000), "hour");
+  }
+
+  return relativeTimeFormatter.format(Math.round(diffMs / 86_400_000), "day");
+};
+
 export const ObjectTable = ({
   folders,
   files,
@@ -96,7 +133,7 @@ export const ObjectTable = ({
                 </button>
               </td>
               <td>{formatSize(file.size)}</td>
-              <td>{file.lastModified ? new Date(file.lastModified).toLocaleString() : "-"}</td>
+              <td>{formatModified(file.lastModified)}</td>
               <td>
                 <div className="table-actions">
                   <button type="button" onClick={() => onDownloadFile(file.key)}>

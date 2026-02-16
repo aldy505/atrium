@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import hljs from "highlight.js/lib/core";
 import json from "highlight.js/lib/languages/json";
 import xml from "highlight.js/lib/languages/xml";
 import markdown from "highlight.js/lib/languages/markdown";
 import plaintext from "highlight.js/lib/languages/plaintext";
 import csv from "highlight.js/lib/languages/plaintext";
-import { getDownloadUrl, getTextPreview } from "../app/lib/api";
+import { getDownloadUrl, getObjectMetadata, getTextPreview } from "../app/lib/api";
 import type { FileEntry } from "../app/lib/types";
 import { getExtension, isImageFile, isTextFile } from "./FileIcon";
 
@@ -37,10 +38,99 @@ const getLanguage = (filename: string): string => {
   }
 };
 
+const RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+
+const formatSize = (size?: number): string => {
+  if (typeof size !== "number" || Number.isNaN(size)) {
+    return "-";
+  }
+
+  if (size < 1024) {
+    return `${size} B`;
+  }
+
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = size / 1024;
+  let unit = units[0];
+
+  for (let index = 1; index < units.length && value >= 1024; index += 1) {
+    value /= 1024;
+    unit = units[index];
+  }
+
+  return `${value.toFixed(1)} ${unit}`;
+};
+
+const formatModified = (lastModified?: string): string => {
+  if (!lastModified) {
+    return "-";
+  }
+
+  const date = new Date(lastModified);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  const diffMs = date.getTime() - Date.now();
+
+  if (Math.abs(diffMs) > RECENT_WINDOW_MS) {
+    return date.toLocaleString();
+  }
+
+  const absMs = Math.abs(diffMs);
+
+  if (absMs < 60_000) {
+    return relativeTimeFormatter.format(Math.round(diffMs / 1000), "second");
+  }
+
+  if (absMs < 3_600_000) {
+    return relativeTimeFormatter.format(Math.round(diffMs / 60_000), "minute");
+  }
+
+  if (absMs < 86_400_000) {
+    return relativeTimeFormatter.format(Math.round(diffMs / 3_600_000), "hour");
+  }
+
+  return relativeTimeFormatter.format(Math.round(diffMs / 86_400_000), "day");
+};
+
+type PreviewMetadataProps = {
+  size?: number;
+  lastModified?: string;
+  contentType?: string;
+};
+
+const PreviewMetadata = ({ size, lastModified, contentType }: PreviewMetadataProps) => {
+  return (
+    <div className="preview-meta" aria-label="File metadata">
+      <div className="preview-meta-row">
+        <span className="preview-meta-label">Size</span>
+        <span className="preview-meta-value">{formatSize(size)}</span>
+      </div>
+      <div className="preview-meta-row">
+        <span className="preview-meta-label">Modified</span>
+        <span className="preview-meta-value">{formatModified(lastModified)}</span>
+      </div>
+      <div className="preview-meta-row">
+        <span className="preview-meta-label">Type</span>
+        <span className="preview-meta-value">{contentType || "application/octet-stream"}</span>
+      </div>
+    </div>
+  );
+};
+
 export const FilePreview = ({ bucket, file }: FilePreviewProps) => {
   const [textContent, setTextContent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  const metadataQuery = useQuery({
+    queryKey: ["object-metadata", bucket, file?.key],
+    queryFn: () => getObjectMetadata(bucket, file!.key),
+    enabled: Boolean(file && bucket),
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -87,6 +177,11 @@ export const FilePreview = ({ bucket, file }: FilePreviewProps) => {
     return hljs.highlight(textContent, { language }).value;
   }, [file, textContent]);
 
+  const metadata = metadataQuery.data;
+  const metadataSize = metadata?.size ?? file?.size;
+  const metadataLastModified = metadata?.lastModified ?? file?.lastModified;
+  const metadataContentType = metadata?.contentType ?? file?.contentType;
+
   if (!file) {
     return (
       <div className="preview-empty center-feedback">
@@ -103,6 +198,11 @@ export const FilePreview = ({ bucket, file }: FilePreviewProps) => {
           src={getDownloadUrl(bucket, file.key, true)}
           alt={file.name}
           className="preview-image"
+        />
+        <PreviewMetadata
+          size={metadataSize}
+          lastModified={metadataLastModified}
+          contentType={metadataContentType}
         />
       </div>
     );
@@ -124,8 +224,15 @@ export const FilePreview = ({ bucket, file }: FilePreviewProps) => {
           </div>
         ) : null}
         {!isLoading && !error ? (
-          <pre className="preview-text" dangerouslySetInnerHTML={{ __html: highlighted }} />
+          <div className="preview-body">
+            <pre className="preview-text" dangerouslySetInnerHTML={{ __html: highlighted }} />
+          </div>
         ) : null}
+        <PreviewMetadata
+          size={metadataSize}
+          lastModified={metadataLastModified}
+          contentType={metadataContentType}
+        />
       </div>
     );
   }

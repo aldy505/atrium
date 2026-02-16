@@ -23,6 +23,14 @@ export type ListObjectsResponse = {
   files: FileEntry[];
 };
 
+export type ObjectMetadataResponse = {
+  bucket: string;
+  key: string;
+  size?: number;
+  lastModified?: string;
+  contentType: string;
+};
+
 export type UploadProgress = {
   filename: string;
   percent: number;

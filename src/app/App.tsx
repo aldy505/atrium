@@ -87,7 +87,10 @@ export const App = () => {
       return null;
     }
 
-    const foldersByKey = new Map<string, (typeof objectsQuery.data.pages)[number]["folders"][number]>();
+    const foldersByKey = new Map<
+      string,
+      (typeof objectsQuery.data.pages)[number]["folders"][number]
+    >();
     const filesByKey = new Map<string, (typeof objectsQuery.data.pages)[number]["files"][number]>();
 
     for (const page of objectsQuery.data.pages) {
@@ -130,11 +133,7 @@ export const App = () => {
       (entries) => {
         const entry = entries[0];
 
-        if (
-          entry?.isIntersecting &&
-          objectsQuery.hasNextPage &&
-          !objectsQuery.isFetchingNextPage
-        ) {
+        if (entry?.isIntersecting && objectsQuery.hasNextPage && !objectsQuery.isFetchingNextPage) {
           void objectsQuery.fetchNextPage();
         }
       },
@@ -398,7 +397,11 @@ export const App = () => {
                   {objectsQuery.isFetchingNextPage ? "Loading more..." : "Load more"}
                 </button>
               </div>
-              <div ref={loadMoreSentinelRef} className="table-pagination-sentinel" aria-hidden="true" />
+              <div
+                ref={loadMoreSentinelRef}
+                className="table-pagination-sentinel"
+                aria-hidden="true"
+              />
             </>
           ) : null}
 

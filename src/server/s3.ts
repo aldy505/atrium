@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListBucketsCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -9,7 +10,7 @@ import {
 import { lookup as lookupMimeType } from "mime-types";
 import { config } from "./config.js";
 import { sentryDistributionMetric, sentryGaugeMetric } from "./observability.js";
-import type { ListObjectsResponse, SessionCredentials } from "./types.js";
+import type { ListObjectsResponse, ObjectMetadataResponse, SessionCredentials } from "./types.js";
 
 let uploadFilesInFlight = 0;
 let downloadFilesInFlight = 0;
@@ -40,6 +41,34 @@ const trackS3Latency = async <T>(
 const reportTransferGauges = (attributes?: Record<string, unknown>): void => {
   sentryGaugeMetric("s3.upload.files_in_flight", uploadFilesInFlight, attributes);
   sentryGaugeMetric("s3.download.files_in_flight", downloadFilesInFlight, attributes);
+};
+
+const inferContentType = (key: string): string => {
+  return (lookupMimeType(key) || "application/octet-stream") as string;
+};
+
+const isHeadObjectUnsupported = (error: unknown): boolean => {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as {
+    name?: string;
+    Code?: string;
+    code?: string;
+    $metadata?: {
+      httpStatusCode?: number;
+    };
+  };
+
+  const code = candidate.Code || candidate.code || candidate.name;
+  const statusCode = candidate.$metadata?.httpStatusCode;
+
+  if (code === "NotImplemented" || code === "MethodNotAllowed") {
+    return true;
+  }
+
+  return statusCode === 405 || statusCode === 501;
 };
 
 const getS3Client = (credentials: SessionCredentials): S3Client => {
@@ -109,7 +138,7 @@ export const listObjects = async (
         name: key.slice(prefix.length),
         size: item.Size ?? 0,
         lastModified: item.LastModified?.toISOString(),
-        contentType: (lookupMimeType(key) || "application/octet-stream") as string,
+        contentType: inferContentType(key),
       };
     });
 
@@ -144,7 +173,7 @@ export const uploadObject = async (
             Bucket: bucket,
             Key: key,
             Body: body,
-            ContentType: contentType || (lookupMimeType(key) || "application/octet-stream").toString(),
+            ContentType: contentType || inferContentType(key),
           }),
         ),
       {
@@ -206,6 +235,48 @@ export const getObject = async (credentials: SessionCredentials, bucket: string,
     downloadFilesInFlight = Math.max(0, downloadFilesInFlight - 1);
     reportTransferGauges({ bucket });
     throw error;
+  }
+};
+
+export const getObjectMetadata = async (
+  credentials: SessionCredentials,
+  bucket: string,
+  key: string,
+): Promise<ObjectMetadataResponse> => {
+  const client = getS3Client(credentials);
+
+  try {
+    const response = await trackS3Latency(
+      "head_object",
+      () =>
+        client.send(
+          new HeadObjectCommand({
+            Bucket: bucket,
+            Key: key,
+          }),
+        ),
+      {
+        bucket,
+      },
+    );
+
+    return {
+      bucket,
+      key,
+      size: response.ContentLength,
+      lastModified: response.LastModified?.toISOString(),
+      contentType: response.ContentType || inferContentType(key),
+    };
+  } catch (error) {
+    if (!isHeadObjectUnsupported(error)) {
+      throw error;
+    }
+
+    return {
+      bucket,
+      key,
+      contentType: inferContentType(key),
+    };
   }
 };
 

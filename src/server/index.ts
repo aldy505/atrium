@@ -52,8 +52,9 @@ app.get("/api/runtime-config", async () => {
         process.env.VITE_SENTRY_TRACES_SAMPLE_RATE ||
         "0.1",
       enableLogs:
-        (process.env.FRONTEND_SENTRY_ENABLE_LOGS || process.env.VITE_SENTRY_ENABLE_LOGS || "true") !==
-        "false",
+        (process.env.FRONTEND_SENTRY_ENABLE_LOGS ||
+          process.env.VITE_SENTRY_ENABLE_LOGS ||
+          "true") !== "false",
       enableMetrics:
         (process.env.FRONTEND_SENTRY_ENABLE_METRICS ||
           process.env.VITE_SENTRY_ENABLE_METRICS ||
