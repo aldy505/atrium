@@ -206,10 +206,16 @@ export const registerS3Routes = (app: FastifyInstance): void => {
     if (!config.S3_LIST_CACHE_ENABLED || !request.sessionToken) {
       setListCacheHeader(reply, "BYPASS");
       sentryCountMetric("cache.s3_list.bypass", 1, metricAttributes);
-      
+
       try {
-        const response = await listObjects(request.sessionCredentials!, bucket, prefix, continuationToken, maxKeys);
-      
+        const response = await listObjects(
+          request.sessionCredentials!,
+          bucket,
+          prefix,
+          continuationToken,
+          maxKeys,
+        );
+
         recordS3Event(request, {
           operation: "s3.list_objects",
           result: "success",
@@ -217,7 +223,7 @@ export const registerS3Routes = (app: FastifyInstance): void => {
           prefix: parsed.data.prefix,
           durationMs: Date.now() - startedAt,
         });
-        
+
         return response;
       } catch (error) {
         recordS3Event(request, {
@@ -338,7 +344,7 @@ export const registerS3Routes = (app: FastifyInstance): void => {
       });
 
       return { ok: true, key };
-     } catch (error) {
+    } catch (error) {
       recordS3Event(request, {
         operation: "s3.upload",
         result: "failure",
