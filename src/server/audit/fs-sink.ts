@@ -66,7 +66,16 @@ const parseDateKey = (value: string): Date | null => {
   const month = Number(match[2]);
   const day = Number(match[3]);
 
-  if (!year || !month || !day) {
+  if (
+    Number.isNaN(year) ||
+    Number.isNaN(month) ||
+    Number.isNaN(day) ||
+    year < 1970 ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
     return null;
   }
 
@@ -77,6 +86,7 @@ export class FilesystemAuditSink implements AuditSink {
   private readonly dir: string;
   private readonly retentionDays: number;
   private lastCleanupKey: string | null = null;
+  private writeQueue: Promise<void> = Promise.resolve();
 
   constructor(dir: string, retentionDays: number) {
     this.dir = dir;
@@ -100,23 +110,28 @@ export class FilesystemAuditSink implements AuditSink {
   }
 
   private async appendWithHeader(filePath: string, line: string): Promise<void> {
-    const handle = await fs.open(filePath, "a+");
+    const writeOperation = async (): Promise<void> => {
+      const handle = await fs.open(filePath, "a+");
 
-    try {
-      const stats = await handle.stat();
+      try {
+        const stats = await handle.stat();
 
-      if (stats.size === 0) {
-        await handle.writeFile(`${CSV_HEADERS.join(",")}\n`);
+        if (stats.size === 0) {
+          await handle.writeFile(`${CSV_HEADERS.join(",")}\n`);
+        }
+
+        await handle.writeFile(`${line}\n`);
+      } finally {
+        await handle.close();
       }
+    };
 
-      await handle.writeFile(`${line}\n`);
-    } finally {
-      await handle.close();
-    }
+    this.writeQueue = this.writeQueue.then(writeOperation, writeOperation);
+    return this.writeQueue;
   }
 
   private async maybeCleanup(dateKey: string): Promise<void> {
-    if (this.retentionDays <= 0) {
+    if (this.retentionDays < 1) {
       return;
     }
 

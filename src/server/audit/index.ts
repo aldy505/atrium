@@ -77,6 +77,14 @@ export const hashAccessKeyId = (accessKeyId?: string): string | undefined => {
   return createHash("sha256").update(accessKeyId).digest("hex");
 };
 
+export const hashSessionToken = (token?: string): string | undefined => {
+  if (!token) {
+    return undefined;
+  }
+
+  return createHash("sha256").update(token).digest("hex");
+};
+
 export const recordAuditEvent = async (event: AuditEvent): Promise<void> => {
   try {
     await auditSink.write(normalizeEvent(event));

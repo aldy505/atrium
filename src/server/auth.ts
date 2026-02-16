@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { hashAccessKeyId, recordAuditEvent } from "./audit/index.js";
+import { hashAccessKeyId, hashSessionToken, recordAuditEvent } from "./audit/index.js";
 import { cookieConfig, config } from "./config.js";
 import { AppError, toErrorMessage } from "./errors.js";
 import { recordAuthResultGauge } from "./observability.js";
@@ -51,7 +51,7 @@ export const requireSession = async (
     });
     void recordAuditEvent({
       operation: "auth.session",
-      sessionToken: token,
+      sessionToken: hashSessionToken(token),
       result: "failure",
       error: "session_expired",
     });
@@ -111,7 +111,7 @@ export const registerAuthRoutes = (app: FastifyInstance): void => {
     void recordAuditEvent({
       operation: "auth.login",
       result: "success",
-      sessionToken: token,
+      sessionToken: hashSessionToken(token),
       accessKeyHash: hashAccessKeyId(credentials.accessKeyId),
       durationMs: Date.now() - startedAt,
     });
@@ -136,7 +136,7 @@ export const registerAuthRoutes = (app: FastifyInstance): void => {
       void recordAuditEvent({
         operation: "auth.logout",
         result: credentials ? "success" : "failure",
-        sessionToken: token,
+        sessionToken: hashSessionToken(token),
         accessKeyHash: hashAccessKeyId(credentials?.accessKeyId),
         error: credentials ? undefined : "session_expired",
       });
@@ -184,7 +184,7 @@ export const registerAuthRoutes = (app: FastifyInstance): void => {
       void recordAuditEvent({
         operation: "auth.me",
         result: "failure",
-        sessionToken: token,
+        sessionToken: hashSessionToken(token),
         error: "session_expired",
       });
       return reply.code(401).send({ error: "Session expired" });
@@ -196,7 +196,7 @@ export const registerAuthRoutes = (app: FastifyInstance): void => {
     void recordAuditEvent({
       operation: "auth.me",
       result: "success",
-      sessionToken: token,
+      sessionToken: hashSessionToken(token),
       accessKeyHash: hashAccessKeyId(sessionCredentials.accessKeyId),
     });
 

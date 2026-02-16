@@ -11,6 +11,7 @@ export class LokiAuditSink implements AuditSink {
   private readonly maxBatchSize: number;
   private buffer: LokiEntry[] = [];
   private timer: NodeJS.Timeout | null = null;
+  private flushInProgress = false;
 
   constructor(url: string, labels: LokiLabels, flushIntervalMs = 2000, maxBatchSize = 200) {
     this.url = url;
@@ -21,7 +22,9 @@ export class LokiAuditSink implements AuditSink {
   }
 
   async write(event: AuditEvent): Promise<void> {
-    const timestampNs = `${Date.parse(event.timestamp ?? new Date().toISOString())}000000`;
+    const parsedTimestampMs = event.timestamp ? Date.parse(event.timestamp) : Date.now();
+    const safeTimestampMs = Number.isNaN(parsedTimestampMs) ? Date.now() : parsedTimestampMs;
+    const timestampNs = `${safeTimestampMs}000000`;
     const line = JSON.stringify(event);
 
     this.buffer.push([timestampNs, line]);
@@ -44,6 +47,7 @@ export class LokiAuditSink implements AuditSink {
     this.timer = setInterval(() => {
       void this.flush();
     }, this.flushIntervalMs);
+    this.timer.unref();
   }
 
   private stopTimer(): void {
@@ -56,7 +60,14 @@ export class LokiAuditSink implements AuditSink {
   }
 
   private async flush(): Promise<void> {
+    if (this.flushInProgress) {
+      return;
+    }
+
+    this.flushInProgress = true;
+
     if (this.buffer.length === 0) {
+      this.flushInProgress = false;
       return;
     }
 
@@ -88,6 +99,12 @@ export class LokiAuditSink implements AuditSink {
       }
     } catch (error) {
       console.error("Failed to push audit logs to Loki", error);
+    } finally {
+      this.flushInProgress = false;
+
+      if (this.buffer.length > 0) {
+        void this.flush();
+      }
     }
   }
 }

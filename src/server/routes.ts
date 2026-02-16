@@ -1,7 +1,7 @@
 import { Readable } from "node:stream";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { hashAccessKeyId, recordAuditEvent } from "./audit/index.js";
+import { hashAccessKeyId, hashSessionToken, recordAuditEvent } from "./audit/index.js";
 import { AppError, toErrorMessage } from "./errors.js";
 import { requireSession } from "./auth.js";
 import {
@@ -53,7 +53,7 @@ const buildAuditBase = (request: {
   sessionCredentials?: { accessKeyId: string };
 }) => {
   return {
-    sessionToken: request.sessionToken,
+    sessionToken: hashSessionToken(request.sessionToken),
     accessKeyHash: hashAccessKeyId(request.sessionCredentials?.accessKeyId),
   };
 };
