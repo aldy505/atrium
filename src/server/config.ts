@@ -1,16 +1,29 @@
 import { z } from "zod";
 
+const parseEnvBool = (val: unknown, def: boolean): boolean => {
+  if (typeof val === "boolean") return val;
+  if (typeof val === "string") {
+    const v = val.trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(v)) return true;
+    if (["0", "false", "no", "off", ""].includes(v)) return false;
+  }
+  if (typeof val === "number") return val !== 0;
+  return def;
+};
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.coerce.number().default(3000),
   REDIS_URL: z.string().min(1),
-  S3_LIST_CACHE_ENABLED: z.coerce.boolean().default(true),
+  S3_LIST_CACHE_ENABLED: z.preprocess((v) => parseEnvBool(v, true), z.boolean()).default(true),
   S3_LIST_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   S3_LIST_CACHE_INVALIDATION_MODE: z.enum(["targeted", "bucket"]).default("targeted"),
-  S3_LIST_CACHE_INCLUDE_HEADERS: z.coerce.boolean().default(true),
+  S3_LIST_CACHE_INCLUDE_HEADERS: z
+    .preprocess((v) => parseEnvBool(v, true), z.boolean())
+    .default(true),
   S3_ENDPOINT: z.string().min(1),
   S3_REGION: z.string().min(1),
-  S3_FORCE_PATH_STYLE: z.coerce.boolean().default(true),
+  S3_FORCE_PATH_STYLE: z.preprocess((v) => parseEnvBool(v, true), z.boolean()).default(true),
   SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(86400),
   COOKIE_NAME: z.string().default("atrium_session"),
   MAX_UPLOAD_SIZE_MB: z.coerce.number().positive().default(100),
@@ -18,8 +31,8 @@ const envSchema = z.object({
   SENTRY_ENVIRONMENT: z.string().optional(),
   SENTRY_RELEASE: z.string().optional(),
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
-  SENTRY_ENABLE_LOGS: z.coerce.boolean().default(true),
-  SENTRY_ENABLE_METRICS: z.coerce.boolean().default(true),
+  SENTRY_ENABLE_LOGS: z.preprocess((v) => parseEnvBool(v, true), z.boolean()).default(true),
+  SENTRY_ENABLE_METRICS: z.preprocess((v) => parseEnvBool(v, true), z.boolean()).default(true),
 });
 
 const parsed = envSchema.safeParse(process.env);

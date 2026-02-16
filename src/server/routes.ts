@@ -152,7 +152,7 @@ export const registerS3Routes = (app: FastifyInstance): void => {
     const { bucket, prefix, continuationToken, maxKeys } = parsed.data;
     const metricAttributes = {
       bucket,
-      prefix,
+      is_root_prefix: prefix === "",
       max_keys: maxKeys,
       has_continuation_token: Boolean(continuationToken),
     };
@@ -166,6 +166,7 @@ export const registerS3Routes = (app: FastifyInstance): void => {
 
     const lookupStartedAt = Date.now();
 
+    let cacheLookupError = false;
     try {
       const cachedResponse = await getCachedListObjectsResponse(
         request.sessionToken,
@@ -174,27 +175,28 @@ export const registerS3Routes = (app: FastifyInstance): void => {
         continuationToken,
         maxKeys,
       );
-
       sentryDistributionMetric(
         "cache.s3_list.lookup.latency",
         Date.now() - lookupStartedAt,
         "millisecond",
         metricAttributes,
       );
-
       if (cachedResponse) {
         setListCacheHeader(reply, "HIT");
         sentryCountMetric("cache.s3_list.hit", 1, metricAttributes);
         return cachedResponse;
       }
     } catch {
+      cacheLookupError = true;
       setListCacheHeader(reply, "BYPASS");
       sentryCountMetric("cache.s3_list.lookup.errors", 1, metricAttributes);
     }
-
+    if (cacheLookupError) {
+      // Do not set MISS or attempt store/metrics if cache is unavailable
+      return listObjects(request.sessionCredentials!, bucket, prefix, continuationToken, maxKeys);
+    }
     setListCacheHeader(reply, "MISS");
     sentryCountMetric("cache.s3_list.miss", 1, metricAttributes);
-
     const response = await listObjects(
       request.sessionCredentials!,
       bucket,
@@ -202,9 +204,7 @@ export const registerS3Routes = (app: FastifyInstance): void => {
       continuationToken,
       maxKeys,
     );
-
     const storeStartedAt = Date.now();
-
     try {
       await setCachedListObjectsResponse(
         request.sessionToken,
@@ -214,7 +214,6 @@ export const registerS3Routes = (app: FastifyInstance): void => {
         maxKeys,
         response,
       );
-
       sentryDistributionMetric(
         "cache.s3_list.store.latency",
         Date.now() - storeStartedAt,
@@ -224,7 +223,6 @@ export const registerS3Routes = (app: FastifyInstance): void => {
     } catch {
       sentryCountMetric("cache.s3_list.store.errors", 1, metricAttributes);
     }
-
     return response;
   });
 

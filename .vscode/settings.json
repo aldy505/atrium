@@ -3,6 +3,7 @@
     "pnpm": true,
     "Copy-Item": true,
     "git town": true,
-    "git add": true
+    "git add": true,
+    "gh": true
   }
 }

@@ -160,23 +160,30 @@ export const invalidateCachedListObjectsByPrefix = async (
     return 0;
   }
 
-  const keys = await scanKeys(`${listCacheBucketNamespace(sessionToken, bucket)}:*`);
-  const exactPrefixSet = new Set(exactPrefixes);
+  let keysToDelete: string[] = [];
 
-  const keysToDelete = keys.filter((cacheKey) => {
-    const cachedPrefix = readPrefixFromListCacheKey(cacheKey);
+  // For exactPrefixes, scan only the relevant prefix segment
+  for (const prefix of exactPrefixes) {
+    const encoded = encodeSegment(prefix);
+    const pattern = `${listCacheBucketNamespace(sessionToken, bucket)}:${encoded}:*`;
+    const found = await scanKeys(pattern);
+    keysToDelete.push(...found);
+  }
 
-    if (cachedPrefix === null) {
-      return false;
+  // For prefixesWithChildren, still need to scan all keys (could optimize further with an index)
+  if (prefixesWithChildren.length) {
+    const allKeys = await scanKeys(`${listCacheBucketNamespace(sessionToken, bucket)}:*`);
+    for (const cacheKey of allKeys) {
+      const cachedPrefix = readPrefixFromListCacheKey(cacheKey);
+      if (cachedPrefix === null) continue;
+      if (prefixesWithChildren.some((p) => cachedPrefix.startsWith(p))) {
+        keysToDelete.push(cacheKey);
+      }
     }
+  }
 
-    if (exactPrefixSet.has(cachedPrefix)) {
-      return true;
-    }
-
-    return prefixesWithChildren.some((prefix) => cachedPrefix.startsWith(prefix));
-  });
-
+  // Remove duplicates
+  keysToDelete = Array.from(new Set(keysToDelete));
   return deleteKeys(keysToDelete);
 };
 

@@ -43,8 +43,8 @@ git commit -m "feat: short summary" -m "Detail paragraph one" -m "Detail paragra
 
 - Branch names should follow `<user>/<category>/<content>`.
 - Examples:
-	- `agents/docs/agent-guidelines-windows-and-quality`
-	- `aldy505/feat/feature-flag-registration`
+  - `agents/docs/agent-guidelines-windows-and-quality`
+  - `aldy505/feat/feature-flag-registration`
 
 ## Key Conventions
 
