@@ -32,8 +32,8 @@ Last updated: 2026-02-15
 
 1. Run app and navigate very large buckets (5k+) with auto-load both on and off.
 2. Validate Sentry ingestion for:
-	- `s3.*.latency`
-	- `s3.upload.files_in_flight`
-	- `s3.download.files_in_flight`
-	- `auth.success`, `auth.failure`
+   - `s3.*.latency`
+   - `s3.upload.files_in_flight`
+   - `s3.download.files_in_flight`
+   - `auth.success`, `auth.failure`
 3. Confirm runtime frontend Sentry config values served by `/api/runtime-config` in target environment.

@@ -1,4 +1,4 @@
-import type { ListObjectsResponse } from "./types";
+import type { ListObjectsResponse, ObjectMetadataResponse } from "./types";
 
 const parseResponse = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
@@ -144,4 +144,16 @@ export const getTextPreview = async (bucket: string, key: string): Promise<strin
   }
 
   return response.text();
+};
+
+export const getObjectMetadata = async (
+  bucket: string,
+  key: string,
+): Promise<ObjectMetadataResponse> => {
+  const params = new URLSearchParams({ bucket, key });
+  const response = await fetch(`/api/s3/object-metadata?${params.toString()}`, {
+    credentials: "include",
+  });
+
+  return parseResponse<ObjectMetadataResponse>(response);
 };

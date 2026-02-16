@@ -28,6 +28,14 @@ export type ListObjectsResponse = {
   files: FileEntry[];
 };
 
+export type ObjectMetadataResponse = {
+  bucket: string;
+  key: string;
+  size?: number;
+  lastModified?: string;
+  contentType: string;
+};
+
 export type ApiErrorShape = {
   error: string;
   details?: string;

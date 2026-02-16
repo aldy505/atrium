@@ -1,6 +1,8 @@
 {
   "chat.tools.terminal.autoApprove": {
     "pnpm": true,
-    "Copy-Item": true
+    "Copy-Item": true,
+    "git town": true,
+    "git add": true
   }
 }

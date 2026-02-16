@@ -7,6 +7,7 @@ import {
   deleteObject,
   deletePrefix,
   getObject,
+  getObjectMetadata,
   listBuckets,
   listObjects,
   uploadObject,
@@ -147,6 +148,16 @@ export const registerS3Routes = (app: FastifyInstance): void => {
 
     reply.header("Content-Type", "text/plain; charset=utf-8");
     return reply.send(content.slice(0, 1_000_000));
+  });
+
+  app.get("/api/s3/object-metadata", { preHandler: requireSession }, async (request) => {
+    const parsed = bucketAndKeySchema.safeParse(request.query);
+
+    if (!parsed.success) {
+      throw new AppError("Invalid metadata query params", 400, true);
+    }
+
+    return getObjectMetadata(request.sessionCredentials!, parsed.data.bucket, parsed.data.key);
   });
 
   app.delete("/api/s3/object", { preHandler: requireSession }, async (request) => {

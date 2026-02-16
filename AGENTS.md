@@ -21,6 +21,8 @@ Co-Authored-By: (the agent model's name and attribution byline)
 
 Example: `Co-Authored-By: Claude Sonnet 4 <noreply@anthropic.com>`
 
+If you cannot find your model's email, use `noreply@agents.md`.
+
 ## Key Conventions
 
 - Stack: React + Fastify + TypeScript in one repo
