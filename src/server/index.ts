@@ -9,6 +9,7 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import { config } from "./config.js";
+import { initializeAuditLogger, shutdownAuditLogger } from "./audit/index.js";
 import { AppError, toErrorMessage } from "./errors.js";
 import { registerAuthRoutes } from "./auth.js";
 import { registerS3Routes } from "./routes.js";
@@ -32,9 +33,14 @@ await app.register(multipart, {
   },
 });
 registerObservabilityHooks(app);
+initializeAuditLogger();
 
 registerAuthRoutes(app);
 registerS3Routes(app);
+
+app.addHook("onClose", async () => {
+  await shutdownAuditLogger();
+});
 
 app.get("/api/runtime-config", async () => {
   const sentryDsn = process.env.FRONTEND_SENTRY_DSN || process.env.VITE_SENTRY_DSN;

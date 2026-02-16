@@ -10,6 +10,10 @@ const envSchema = z.object({
   SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(86400),
   COOKIE_NAME: z.string().default("atrium_session"),
   MAX_UPLOAD_SIZE_MB: z.coerce.number().positive().default(100),
+  AUDIT_LOG_SINK: z.enum(["filesystem", "loki", "none"]).default("filesystem"),
+  AUDIT_LOG_DIR: z.string().default("audit-logs"),
+  AUDIT_LOG_RETENTION_DAYS: z.coerce.number().int().min(1).default(30),
+  AUDIT_LOG_LOKI_URL: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
   SENTRY_ENVIRONMENT: z.string().optional(),
   SENTRY_RELEASE: z.string().optional(),
@@ -22,6 +26,11 @@ const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
   console.error("Invalid environment configuration", parsed.error.flatten().fieldErrors);
+  process.exit(1);
+}
+
+if (parsed.data.AUDIT_LOG_SINK === "loki" && !parsed.data.AUDIT_LOG_LOKI_URL) {
+  console.error("AUDIT_LOG_LOKI_URL is required when AUDIT_LOG_SINK=loki");
   process.exit(1);
 }
 

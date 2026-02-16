@@ -1,6 +1,6 @@
 # Atrium Implementation History
 
-Last updated: 2026-02-15
+Last updated: 2026-02-16
 
 ## 1) Project Initialization
 
@@ -144,3 +144,14 @@ Last updated: 2026-02-15
 - Added auth result gauges in auth/session paths:
   - `auth.success`
   - `auth.failure`
+
+## 13) 2026-02-16 Follow-up: Audit Logging (Filesystem/Loki)
+
+- Added audit logging abstraction with pluggable sinks:
+  - Filesystem CSV append (daily `audit-log_YYYYMMDD.csv` files)
+  - Loki push (`POST /loki/api/v1/push`)
+- Implemented audit event emission for:
+  - Auth/session lifecycle (`auth.login`, `auth.logout`, `auth.me`, `auth.session`)
+  - All S3 routes (list, upload, download, preview, metadata, delete)
+- Hashes access key IDs with SHA-256 before logging (no plaintext credentials).
+- Added env configuration for audit logging and retention (`AUDIT_LOG_*`).

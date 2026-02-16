@@ -1,6 +1,6 @@
 # Atrium Current State (Handoff)
 
-Last updated: 2026-02-15
+Last updated: 2026-02-16
 
 ## Current Status
 
@@ -9,6 +9,7 @@ Last updated: 2026-02-15
 - UI supports both manual pagination (**Load more**) and optional auto-load on scroll.
 - Frontend Sentry is initialized at runtime via `/api/runtime-config` (with Vite env fallback).
 - Backend S3/auth metric instrumentation is in place.
+- Audit logging is in place with filesystem CSV or Loki sinks.
 - TypeScript typecheck and production build are passing.
 
 ## Important Implementation Decisions
@@ -20,6 +21,7 @@ Last updated: 2026-02-15
 - Frontend Sentry config is runtime-resolved from backend (`FRONTEND_SENTRY_*` preferred).
 - Metrics use direct `Sentry.metrics.*` calls.
 - S3 list API is paginated (`maxKeys`, continuation tokens), default page size `200`.
+- Audit logs never store plaintext credentials; access key IDs are SHA-256 hashed.
 
 ## Key Entrypoints
 
@@ -37,3 +39,4 @@ Last updated: 2026-02-15
    - `s3.download.files_in_flight`
    - `auth.success`, `auth.failure`
 3. Confirm runtime frontend Sentry config values served by `/api/runtime-config` in target environment.
+4. Verify audit log output in filesystem or Loki based on `AUDIT_LOG_SINK`.
