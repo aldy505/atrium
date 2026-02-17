@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
 import crypto from "node:crypto";
 import {
   createSession,
@@ -14,16 +14,34 @@ import type { SessionCredentials, ListObjectsResponse } from "../src/server/type
 
 describe("session", () => {
   const redis = createTestRedisClient();
+  const cacheTokenHashes = new Set<string>();
+
+  function trackCacheToken(token: string): string {
+    const hash = crypto.createHash("sha256").update(token).digest("hex");
+    cacheTokenHashes.add(hash);
+    return token;
+  }
+
+  async function cleanupTrackedCacheEntries(): Promise<void> {
+    for (const hash of cacheTokenHashes) {
+      await cleanupRedisKeys(redis, `cache_s3_list:${hash}:*`);
+    }
+    cacheTokenHashes.clear();
+  }
 
   beforeEach(async () => {
     // Clean up any existing test data
     await cleanupRedisKeys(redis, "session:*");
-    await cleanupRedisKeys(redis, "cache_s3_list:*");
+    cacheTokenHashes.clear();
   });
 
   afterEach(async () => {
     await cleanupRedisKeys(redis, "session:*");
-    await cleanupRedisKeys(redis, "cache_s3_list:*");
+    await cleanupTrackedCacheEntries();
+  });
+
+  afterAll(async () => {
+    await redis.disconnect();
   });
 
   describe("createSession", () => {
@@ -128,7 +146,7 @@ describe("session", () => {
     });
 
     it("should return cached response when available", async () => {
-      const token = crypto.randomBytes(48).toString("base64url");
+      const token = trackCacheToken(crypto.randomBytes(48).toString("base64url"));
       const bucket = "test-bucket";
       const prefix = "test-prefix/";
       const response: ListObjectsResponse = {
@@ -150,7 +168,7 @@ describe("session", () => {
     });
 
     it("should return null for non-existent cache entry", async () => {
-      const token = crypto.randomBytes(48).toString("base64url");
+      const token = trackCacheToken(crypto.randomBytes(48).toString("base64url"));
       const cached = await getCachedListObjectsResponse(token, "bucket", "prefix/", undefined, 200);
 
       expect(cached).toBeNull();
@@ -159,7 +177,7 @@ describe("session", () => {
 
   describe("setCachedListObjectsResponse", () => {
     it("should cache list objects response", async () => {
-      const token = crypto.randomBytes(48).toString("base64url");
+      const token = trackCacheToken(crypto.randomBytes(48).toString("base64url"));
       const bucket = "test-bucket";
       const prefix = "test-prefix/";
       const response: ListObjectsResponse = {
@@ -190,7 +208,7 @@ describe("session", () => {
     });
 
     it("should set TTL on cached entry", async () => {
-      const token = crypto.randomBytes(48).toString("base64url");
+      const token = trackCacheToken(crypto.randomBytes(48).toString("base64url"));
       const bucket = "test-bucket";
       const prefix = "test-prefix/";
       const response: ListObjectsResponse = {
@@ -220,7 +238,7 @@ describe("session", () => {
 
   describe("invalidateCachedListObjectsForBucket", () => {
     it("should delete all cache entries for a bucket", async () => {
-      const token = crypto.randomBytes(48).toString("base64url");
+      const token = trackCacheToken(crypto.randomBytes(48).toString("base64url"));
       const bucket = "test-bucket";
       const response: ListObjectsResponse = {
         bucket,
@@ -256,7 +274,7 @@ describe("session", () => {
 
   describe("invalidateCachedListObjectsByPrefix", () => {
     it("should invalidate exact prefix matches", async () => {
-      const token = crypto.randomBytes(48).toString("base64url");
+      const token = trackCacheToken(crypto.randomBytes(48).toString("base64url"));
       const bucket = "test-bucket";
       const response: ListObjectsResponse = {
         bucket,
@@ -281,7 +299,7 @@ describe("session", () => {
     });
 
     it("should invalidate prefixes with children", async () => {
-      const token = crypto.randomBytes(48).toString("base64url");
+      const token = trackCacheToken(crypto.randomBytes(48).toString("base64url"));
       const bucket = "test-bucket";
       const response: ListObjectsResponse = {
         bucket,

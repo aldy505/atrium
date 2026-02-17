@@ -31,6 +31,8 @@ describe("s3", () => {
       await s3Client.send(new DeleteBucketCommand({ Bucket: testBucketName }));
     } catch (error) {
       console.warn("Failed to clean up test bucket:", error);
+    } finally {
+      s3Client.destroy();
     }
   });
 

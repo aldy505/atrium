@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from "vitest";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import { registerAuthRoutes, requireSession } from "../src/server/auth.js";
@@ -38,6 +38,10 @@ describe("auth", () => {
 
   afterEach(async () => {
     await cleanupRedisKeys(redis, "session:*");
+  });
+
+  afterAll(async () => {
+    await redis.disconnect();
   });
 
   describe("requireSession", () => {

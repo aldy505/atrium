@@ -43,8 +43,8 @@ Comprehensive unit tests have been implemented for the backend using Vitest. Tes
 ### Configuration Files
 
 - `vitest.config.ts` - Vitest configuration with coverage settings
-- `src/server/vitest.setup.ts` - Test environment setup
-- `src/server/test-utils.ts` - Shared test utilities
+- `tests/vitest.setup.ts` - Test environment setup
+- `tests/test-utils.ts` - Shared test utilities
 
 ### Test Services
 
@@ -84,30 +84,28 @@ pnpm test:coverage
 
 ## GitHub Actions CI/CD
 
-A GitHub Actions workflow (`.github/workflows/ci.yml`) has been configured with:
+A GitHub Actions workflow (`.github/workflows/ci.yaml`) has been configured with:
 
 ### Service Containers
 
 - **Redis**: `redis:7-alpine` with health checks
-- **MinIO**: `minio/minio:latest` with health checks
+- **MinIO**: `minio/minio:RELEASE.2024-09-22T00-33-43Z` with health checks
 
 ### CI Steps
 
 1. Checkout code
 2. Setup pnpm and Node.js
 3. Install dependencies
-4. Run type checking
+4. Run formatter check
 5. Run linter
-6. Run formatter check
-7. Run tests
-8. Generate coverage report
-9. Upload coverage to Codecov
-10. Build project
+6. Run type checking
+7. Build project
+8. Run tests
 
 ### Workflow Triggers
 
-- Push to `main` or `develop` branches
-- Pull requests to `main` or `develop` branches
+- Push to `master` branch
+- Pull requests targeting `master` branch
 
 ## Test Patterns
 
