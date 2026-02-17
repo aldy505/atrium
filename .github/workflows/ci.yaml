@@ -89,10 +89,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
       - run: pnpm prune --prod
-      - if: ${{ matrix.runs-on != 'windows-latest' }}
-        run: rm -rf .agents .vscode .github src tests .git* AGENTS.md CLAUDE.md CONTRIBUTING.md index.html tsconfig* vite* docker-compose.yml Dockerfile
-      - if: ${{ matrix.runs-on == 'windows-latest' }}
-        run: rm -r fo .agents .vscode .github src tests .git* AGENTS.md CLAUDE.md CONTRIBUTING.md index.html tsconfig* vite* docker-compose.yml Dockerfile
       - id: name
         shell: bash
         run: |
@@ -114,7 +110,12 @@ jobs:
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ${{ steps.name.outputs.name }}
-          path: ./
+          path: |
+            dist/
+            node_modules/
+            package.json
+            LICENSE
+            README.md
           retention-days: 90
   build-docker:
     name: Build Docker image
