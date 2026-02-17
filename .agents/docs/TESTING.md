@@ -89,7 +89,7 @@ A GitHub Actions workflow (`.github/workflows/ci.yaml`) has been configured with
 ### Service Containers
 
 - **Redis**: `redis:7-alpine` with health checks
-- **MinIO**: `minio/minio:RELEASE.2024-09-22T00-33-43Z` with health checks
+- **MinIO**: `minio/minio:edge-cicd` with health checks
 
 ### CI Steps
 
