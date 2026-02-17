@@ -10,10 +10,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "json", "html"],
       include: ["src/server/**/*.ts"],
-      exclude: [
-        "src/server/index.ts",
-        "src/server/sentry.server.ts",
-      ],
+      exclude: ["src/server/index.ts", "src/server/sentry.server.ts"],
     },
     testTimeout: 10000,
     hookTimeout: 10000,
