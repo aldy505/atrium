@@ -47,6 +47,10 @@ const inferContentType = (key: string): string => {
   return (lookupMimeType(key) || "application/octet-stream") as string;
 };
 
+const isFolderPlaceholderKey = (key: string): boolean => {
+  return key.endsWith("/.folderPlaceholder") || key.endsWith(".folderPlaceholder");
+};
+
 const isHeadObjectUnsupported = (error: unknown): boolean => {
   if (!error || typeof error !== "object") {
     return false;
@@ -130,6 +134,7 @@ export const listObjects = async (
 
   const files = (response.Contents ?? [])
     .filter((item) => item.Key && item.Key !== prefix)
+    .filter((item) => !isFolderPlaceholderKey(item.Key as string))
     .map((item) => {
       const key = item.Key as string;
       return {
@@ -235,7 +240,14 @@ export const createFolder = async (
       );
 
       return { key: folderKey, usedPlaceholder: true };
-    } catch {
+    } catch (fallbackError) {
+      console.error("Failed to create S3 folder placeholder after initial error", {
+        bucket,
+        folderKey,
+        placeholderKey,
+        originalError: error,
+        fallbackError,
+      });
       throw error;
     }
   }

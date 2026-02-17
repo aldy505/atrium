@@ -63,9 +63,14 @@ export const CreateFolderDialog = ({
   };
 
   return (
-    <div className="modal-overlay" role="dialog" aria-modal="true">
+    <div
+      className="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-folder-title"
+    >
       <div className="modal-card">
-        <h3>Create folder</h3>
+        <h3 id="create-folder-title">Create folder</h3>
         <form className="modal-form" onSubmit={handleSubmit}>
           <label className="modal-field">
             <span>Folder name</span>

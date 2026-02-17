@@ -103,7 +103,7 @@ const normalizeFolderName = (value: string): string => {
   const trimmed = value.trim();
 
   if (!trimmed) {
-    throw new AppError("Folder name is required", 400, true);
+    throw new AppError("Folder name is required.", 400, true);
   }
 
   if (trimmed === "." || trimmed === "..") {
@@ -111,11 +111,11 @@ const normalizeFolderName = (value: string): string => {
   }
 
   if (trimmed.includes("/") || trimmed.includes("\\")) {
-    throw new AppError("Folder name cannot contain '/' or '\\'", 400, true);
+    throw new AppError("Folder name cannot contain / or \\\.", 400, true);
   }
 
   if (trimmed.length > 1024) {
-    throw new AppError("Folder name is too long", 400, true);
+    throw new AppError("Folder name is too long.", 400, true);
   }
 
   return trimmed;
@@ -416,8 +416,8 @@ export const registerS3Routes = (app: FastifyInstance): void => {
       });
 
       void invalidateListCacheForMutation(request.sessionToken, parsed.data.bucket, {
-        type: "prefix",
-        prefix: folderKey,
+        type: "object",
+        key: folderKey,
       }).catch((error) => {
         console.error("Failed to invalidate S3 list cache after create folder", error);
       });
