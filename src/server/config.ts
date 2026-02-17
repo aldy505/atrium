@@ -37,6 +37,7 @@ const envSchema = z.object({
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
   SENTRY_ENABLE_LOGS: z.preprocess((v) => parseEnvBool(v, true), z.boolean()).default(true),
   SENTRY_ENABLE_METRICS: z.preprocess((v) => parseEnvBool(v, true), z.boolean()).default(true),
+  OFREP_ENDPOINT: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
