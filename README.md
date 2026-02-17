@@ -6,14 +6,15 @@ Atrium is a self-hosted web app for browsing and managing S3-compatible object s
 > Hello! Human here. This project is vibe-coded with various AI models (you will
 > see Claude Sonnet 4.5, OpenAI GPT-5.3 Codex, and some other) during a long
 > weekend. I was trying what is it to really one-shot a software that I actually
-> need in real life, not just some janky project with AI slop in it. 
+> need in real life, not just some janky project with AI slop in it.
 >
-> Turns out, it actually works and by the time you read this, I probably running
-> this application on my company.
+> Turns out, it actually works and by the time you read this, I probably have
+> this application running on my company.
 >
 > My specific use case is that I'm moving away from MinIO to SeaweedFS because
 > of the drama and no-more-support, obviously. SeaweedFS does not provide a web
-> UI similar to MinIO did. Therefore, I really need one. Other solutions such as
+> UI similar to MinIO did. In my company I have a really weird process that
+> needs the UI. Therefore, I really need one. Other solutions such as
 > S3 Browser and Cyberduck are not viable for me, because it's a freemium, not
 > fully open source.
 
@@ -72,12 +73,14 @@ docker-compose up --build
 ## Installation
 
 Docker is the most convenient way:
+
 ```bash
 docker pull ghcr.io/aldy505/atrium:edge
 # edge means from `master` branch
 ```
 
 You can also download from download the pre-build tarball from [GitHub Actions page](https://github.com/aldy505/atrium/actions/workflows/ci.yaml?query=branch%3Amaster).
+
 ```bash
 # atrium.tar.gz
 tar -zxf atrium.tar.gz
