@@ -1,6 +1,6 @@
 # Atrium Implementation History
 
-Last updated: 2026-02-16
+Last updated: 2026-02-17
 
 ## 1) Project Initialization
 
@@ -177,3 +177,10 @@ Last updated: 2026-02-16
   - All S3 routes (list, upload, download, preview, metadata, delete)
 - Hashes access key IDs with SHA-256 before logging (no plaintext credentials).
 - Added env configuration for audit logging and retention (`AUDIT_LOG_*`).
+
+## 15) 2026-02-17 Follow-up: Create Folder UX (Issue #3)
+
+- Added a toolbar action + modal for creating folders with validation.
+- Added `/api/s3/folder` route with folder-name normalization and cache invalidation.
+- Implemented S3 folder creation with trailing-slash objects and a `.folderPlaceholder` fallback.
+- Added frontend API helper and modal styling updates.
