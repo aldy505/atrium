@@ -47,6 +47,10 @@ const inferContentType = (key: string): string => {
   return (lookupMimeType(key) || "application/octet-stream") as string;
 };
 
+const isFolderPlaceholderKey = (key: string): boolean => {
+  return key.endsWith("/.folderPlaceholder") || key.endsWith(".folderPlaceholder");
+};
+
 const isHeadObjectUnsupported = (error: unknown): boolean => {
   if (!error || typeof error !== "object") {
     return false;
@@ -130,6 +134,7 @@ export const listObjects = async (
 
   const files = (response.Contents ?? [])
     .filter((item) => item.Key && item.Key !== prefix)
+    .filter((item) => !isFolderPlaceholderKey(item.Key as string))
     .map((item) => {
       const key = item.Key as string;
       return {
@@ -184,6 +189,67 @@ export const uploadObject = async (
   } finally {
     uploadFilesInFlight = Math.max(0, uploadFilesInFlight - 1);
     reportTransferGauges({ bucket });
+  }
+};
+
+export const createFolder = async (
+  credentials: SessionCredentials,
+  bucket: string,
+  folderKey: string,
+): Promise<{ key: string; usedPlaceholder: boolean }> => {
+  const client = getS3Client(credentials);
+
+  try {
+    await trackS3Latency(
+      "put_object",
+      () =>
+        client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: folderKey,
+            Body: Buffer.alloc(0),
+          }),
+        ),
+      {
+        bucket,
+        file_size_bytes: 0,
+        is_folder: true,
+      },
+    );
+
+    return { key: folderKey, usedPlaceholder: false };
+  } catch (error) {
+    const placeholderKey = `${folderKey}.folderPlaceholder`;
+
+    try {
+      await trackS3Latency(
+        "put_object",
+        () =>
+          client.send(
+            new PutObjectCommand({
+              Bucket: bucket,
+              Key: placeholderKey,
+              Body: Buffer.alloc(0),
+            }),
+          ),
+        {
+          bucket,
+          file_size_bytes: 0,
+          is_folder_placeholder: true,
+        },
+      );
+
+      return { key: folderKey, usedPlaceholder: true };
+    } catch (fallbackError) {
+      console.error("Failed to create S3 folder placeholder after initial error", {
+        bucket,
+        folderKey,
+        placeholderKey,
+        originalError: error,
+        fallbackError,
+      });
+      throw error;
+    }
   }
 };
 

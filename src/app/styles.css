@@ -429,6 +429,37 @@ button:disabled {
   padding: 1rem;
 }
 
+.modal-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.modal-field {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+}
+
+.modal-field input {
+  border: 1px solid var(--border);
+  background: var(--panel-bg);
+  color: var(--text);
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.65rem;
+}
+
+.modal-hint {
+  margin: 0;
+  color: var(--muted-text);
+  font-size: 0.85rem;
+}
+
+.modal-error {
+  margin: 0;
+  color: var(--error-border);
+  font-size: 0.85rem;
+}
+
 .modal-actions {
   margin-top: 1rem;
   display: flex;

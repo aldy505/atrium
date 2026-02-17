@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import {
   checkSession,
+  createFolder,
   deleteObject,
   deletePrefix,
   getBuckets,
@@ -14,6 +15,7 @@ import {
 import type { FileEntry, UploadProgress } from "./lib/types";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { CreateFolderDialog } from "../components/CreateFolderDialog";
 import { FilePreview } from "../components/FilePreview";
 import { LoginForm } from "../components/LoginForm";
 import { ObjectTable } from "../components/ObjectTable";
@@ -33,6 +35,7 @@ export const App = () => {
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -236,6 +239,25 @@ export const App = () => {
     },
   });
 
+  const createFolderMutation = useMutation({
+    mutationFn: async (name: string) => {
+      if (!selectedBucket) {
+        throw new Error("Select a bucket first");
+      }
+
+      return createFolder(selectedBucket, currentPrefix, name);
+    },
+    onSuccess: (response) => {
+      setCurrentPrefix(response.key);
+      setSelectedFile(null);
+      setCreateFolderOpen(false);
+      void handleRefresh();
+    },
+    onError: (error) => {
+      setGlobalError(error instanceof Error ? error.message : "Create folder failed");
+    },
+  });
+
   const statusText = useMemo(() => {
     if (objectsQuery.isLoading) {
       return "Loading objects...";
@@ -329,6 +351,13 @@ export const App = () => {
               />
               <span>Auto-load on scroll</span>
             </label>
+            <button
+              type="button"
+              onClick={() => setCreateFolderOpen(true)}
+              disabled={!selectedBucket}
+            >
+              New folder
+            </button>
             <input
               type="search"
               value={filter}
@@ -433,6 +462,18 @@ export const App = () => {
           isLoading={deleteMutation.isPending}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={async () => deleteMutation.mutateAsync(deleteTarget)}
+        />
+      ) : null}
+
+      {createFolderOpen ? (
+        <CreateFolderDialog
+          bucket={selectedBucket}
+          prefix={currentPrefix}
+          isLoading={createFolderMutation.isPending}
+          onCancel={() => setCreateFolderOpen(false)}
+          onCreate={async (name) => {
+            await createFolderMutation.mutateAsync(name);
+          }}
         />
       ) : null}
     </div>

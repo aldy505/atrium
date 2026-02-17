@@ -1,6 +1,6 @@
 # Atrium Current State (Handoff)
 
-Last updated: 2026-02-16
+Last updated: 2026-02-17
 
 ## Current Status
 
@@ -8,6 +8,7 @@ Last updated: 2026-02-16
 - Cursor pagination for object listing is implemented across API + UI.
 - Redis-backed server-side S3 list cache is implemented for `/api/s3/objects`.
 - UI supports both manual pagination (**Load more**) and optional auto-load on scroll.
+- UI supports creating folders with validation and navigation on success.
 - Frontend Sentry is initialized at runtime via `/api/runtime-config` (with Vite env fallback).
 - Backend S3/auth metric instrumentation is in place.
 - Audit logging is in place with filesystem CSV or Loki sinks.
@@ -27,6 +28,7 @@ Last updated: 2026-02-16
 - Cache invalidation runs after upload/delete with env-selectable mode:
   - `targeted` (default): parent-prefix lineage (+ deleted subtree for prefix delete)
   - `bucket`: invalidate all cached pages for session+bucket
+- Folder creation uses trailing-slash S3 objects with a placeholder fallback when needed.
 
 ## Key Entrypoints
 
@@ -49,3 +51,4 @@ Last updated: 2026-02-16
    - `X-Atrium-S3-List-Cache: HIT` on repeated request
    - `X-Atrium-S3-List-Cache: BYPASS` when cache disabled or unavailable
 5. Verify audit log output in filesystem or Loki based on `AUDIT_LOG_SINK`.
+6. Create a folder and confirm navigation enters the new prefix.

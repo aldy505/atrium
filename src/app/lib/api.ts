@@ -128,6 +128,21 @@ export const deletePrefix = async (bucket: string, prefix: string): Promise<numb
   return body.deleted;
 };
 
+export const createFolder = async (
+  bucket: string,
+  prefix: string,
+  name: string,
+): Promise<{ ok: boolean; key: string; placeholderCreated?: boolean }> => {
+  const response = await fetch("/api/s3/folder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ bucket, prefix, name }),
+  });
+
+  return parseResponse<{ ok: boolean; key: string; placeholderCreated?: boolean }>(response);
+};
+
 export const getDownloadUrl = (bucket: string, key: string, inline = false): string => {
   const params = new URLSearchParams({ bucket, key, inline: inline ? "1" : "0" });
   return `/api/s3/download?${params.toString()}`;
