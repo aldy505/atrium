@@ -2,11 +2,26 @@
 
 Atrium is a self-hosted web app for browsing and managing S3-compatible object storage.
 
-## Features (v1)
+> [!NOTE]
+> Hello! Human here. This project is vibe-coded with various AI models (you will
+> see Claude Sonnet 4.5, OpenAI GPT-5.3 Codex, and some other) during a long
+> weekend. I was trying what is it to really one-shot a software that I actually
+> need in real life, not just some janky project with AI slop in it. 
+>
+> Turns out, it actually works and by the time you read this, I probably running
+> this application on my company.
+>
+> My specific use case is that I'm moving away from MinIO to SeaweedFS because
+> of the drama and no-more-support, obviously. SeaweedFS does not provide a web
+> UI similar to MinIO did. Therefore, I really need one. Other solutions such as
+> S3 Browser and Cyberduck are not viable for me, because it's a freemium, not
+> fully open source.
+
+## Features
 
 - Login with Access Key ID + Secret Access Key (no user account system)
 - Redis-backed secure session tokens with TTL and httpOnly cookie auth
-- Provider-agnostic S3 support (AWS S3, Cloudflare R2, MinIO, Backblaze B2, DigitalOcean Spaces)
+- Provider-agnostic S3 support (AWS S3, Cloudflare R2, MinIO, ...you name it)
 - Bucket and folder navigation with breadcrumbs
 - File upload (drag/drop or picker) with progress indication
 - File download with proper content-type and filename
@@ -18,7 +33,8 @@ Atrium is a self-hosted web app for browsing and managing S3-compatible object s
 
 ## Architecture
 
-This implementation uses a Vite + React frontend with a Fastify TypeScript backend in one repository. It is a deliberate alternative to TanStack Start for v1 to keep deployment and Docker runtime behavior straightforward while preserving SSR-ready migration paths.
+This implementation uses a Vite + React frontend with a Fastify backend
+in one repository.
 
 - Frontend: React + TypeScript (dashboard in `src/app`, reusable UI in `src/components`)
 - Backend: Node.js + Fastify + TypeScript (`src/server`)
@@ -52,6 +68,22 @@ docker-compose up --build
 - Secret Access Key: `minioadmin`
 
 5. Create a bucket in MinIO Console first, then browse/upload/download/delete through Atrium.
+
+## Installation
+
+Docker is the most convenient way:
+```bash
+docker pull ghcr.io/aldy505/atrium:edge
+# edge means from `master` branch
+```
+
+You can also download from download the pre-build tarball from [GitHub Actions page](https://github.com/aldy505/atrium/actions/workflows/ci.yaml?query=branch%3Amaster).
+```bash
+# atrium.tar.gz
+tar -zxf atrium.tar.gz
+cd atrium
+npm run start
+```
 
 ## MinIO Test Credentials
 
