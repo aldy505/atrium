@@ -187,6 +187,60 @@ export const uploadObject = async (
   }
 };
 
+export const createFolder = async (
+  credentials: SessionCredentials,
+  bucket: string,
+  folderKey: string,
+): Promise<{ key: string; usedPlaceholder: boolean }> => {
+  const client = getS3Client(credentials);
+
+  try {
+    await trackS3Latency(
+      "put_object",
+      () =>
+        client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: folderKey,
+            Body: Buffer.alloc(0),
+          }),
+        ),
+      {
+        bucket,
+        file_size_bytes: 0,
+        is_folder: true,
+      },
+    );
+
+    return { key: folderKey, usedPlaceholder: false };
+  } catch (error) {
+    const placeholderKey = `${folderKey}.folderPlaceholder`;
+
+    try {
+      await trackS3Latency(
+        "put_object",
+        () =>
+          client.send(
+            new PutObjectCommand({
+              Bucket: bucket,
+              Key: placeholderKey,
+              Body: Buffer.alloc(0),
+            }),
+          ),
+        {
+          bucket,
+          file_size_bytes: 0,
+          is_folder_placeholder: true,
+        },
+      );
+
+      return { key: folderKey, usedPlaceholder: true };
+    } catch {
+      throw error;
+    }
+  }
+};
+
 export const getObject = async (credentials: SessionCredentials, bucket: string, key: string) => {
   const client = getS3Client(credentials);
   downloadFilesInFlight += 1;

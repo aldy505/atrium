@@ -7,6 +7,7 @@ import { requireSession } from "./auth.js";
 import { config } from "./config.js";
 import { sentryCountMetric, sentryDistributionMetric } from "./observability.js";
 import {
+  createFolder,
   deleteObject,
   deletePrefix,
   getObject,
@@ -44,6 +45,12 @@ const bucketAndKeyDownloadSchema = z.object({
 const bucketAndPrefixSchema = z.object({
   bucket: z.string().min(1),
   prefix: z.string().min(1),
+});
+
+const createFolderSchema = z.object({
+  bucket: z.string().min(1),
+  prefix: z.string().default(""),
+  name: z.string().min(1),
 });
 
 const streamToBuffer = async (stream: Readable): Promise<Buffer> => {
@@ -90,6 +97,28 @@ const normalizePrefix = (prefix: string): string => {
   }
 
   return prefix.endsWith("/") ? prefix : `${prefix}/`;
+};
+
+const normalizeFolderName = (value: string): string => {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    throw new AppError("Folder name is required", 400, true);
+  }
+
+  if (trimmed === "." || trimmed === "..") {
+    throw new AppError("Folder name cannot be . or ..", 400, true);
+  }
+
+  if (trimmed.includes("/") || trimmed.includes("\\")) {
+    throw new AppError("Folder name cannot contain '/' or '\\'", 400, true);
+  }
+
+  if (trimmed.length > 1024) {
+    throw new AppError("Folder name is too long", 400, true);
+  }
+
+  return trimmed;
 };
 
 const getParentPrefixFromObjectKey = (key: string): string => {
@@ -351,6 +380,55 @@ export const registerS3Routes = (app: FastifyInstance): void => {
         result: "failure",
         bucket: query.bucket,
         key,
+        error: toErrorMessage(error),
+        durationMs: Date.now() - startedAt,
+      });
+      throw error;
+    }
+  });
+
+  app.post("/api/s3/folder", { preHandler: requireSession }, async (request) => {
+    const startedAt = Date.now();
+    const parsed = createFolderSchema.safeParse(request.body);
+
+    if (!parsed.success) {
+      recordS3Event(request, {
+        operation: "s3.create_folder",
+        result: "failure",
+        error: "invalid_body",
+        durationMs: Date.now() - startedAt,
+      });
+      throw new AppError("Invalid create folder payload", 400, true);
+    }
+
+    const name = normalizeFolderName(parsed.data.name);
+    const normalizedPrefix = normalizePrefix(parsed.data.prefix);
+    const folderKey = `${normalizedPrefix}${name}/`;
+
+    try {
+      const result = await createFolder(request.sessionCredentials!, parsed.data.bucket, folderKey);
+      recordS3Event(request, {
+        operation: "s3.create_folder",
+        result: "success",
+        bucket: parsed.data.bucket,
+        key: folderKey,
+        durationMs: Date.now() - startedAt,
+      });
+
+      void invalidateListCacheForMutation(request.sessionToken, parsed.data.bucket, {
+        type: "prefix",
+        prefix: folderKey,
+      }).catch((error) => {
+        console.error("Failed to invalidate S3 list cache after create folder", error);
+      });
+
+      return { ok: true, key: result.key, placeholderCreated: result.usedPlaceholder };
+    } catch (error) {
+      recordS3Event(request, {
+        operation: "s3.create_folder",
+        result: "failure",
+        bucket: parsed.data.bucket,
+        key: folderKey,
         error: toErrorMessage(error),
         durationMs: Date.now() - startedAt,
       });
