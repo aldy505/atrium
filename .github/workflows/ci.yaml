@@ -18,6 +18,31 @@ jobs:
   build-test:
     name: Build and test
     runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      minio:
+        image: minio/minio:edge-cicd
+        ports:
+          - 9000:9000
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        options: >-
+          --health-cmd "mc ready local"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
@@ -29,8 +54,17 @@ jobs:
       - run: pnpm run lint
       - run: pnpm run typecheck
       - run: pnpm run build
-      # We don't have any tests yet, so this is commented out for now.
-      # - run: pnpm run test
+      - name: Run tests
+        env:
+          REDIS_URL: redis://localhost:6379
+          S3_ENDPOINT: http://localhost:9000
+          S3_REGION: us-east-1
+          S3_FORCE_PATH_STYLE: true
+          TEST_MINIO_ENDPOINT: http://localhost:9000
+          TEST_REDIS_URL: redis://localhost:6379
+          TEST_ACCESS_KEY_ID: minioadmin
+          TEST_SECRET_ACCESS_KEY: minioadmin
+        run: pnpm test
   build-docker:
     name: Build Docker image
     runs-on: ubuntu-latest
