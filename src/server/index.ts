@@ -8,12 +8,28 @@ import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
+import { OpenFeature, MultiProvider, FirstMatchStrategy } from "@openfeature/server-sdk";
+import { OFREPProvider } from "@openfeature/ofrep-provider";
+import { EnvVarProvider } from "@openfeature/env-var-provider";
 import { config } from "./config.js";
 import { initializeAuditLogger, shutdownAuditLogger } from "./audit/index.js";
 import { AppError, toErrorMessage } from "./errors.js";
 import { registerAuthRoutes } from "./auth.js";
 import { registerS3Routes } from "./routes.js";
 import { captureServerError, registerObservabilityHooks, sentryLog } from "./observability.js";
+
+// Create providers
+const primaryProvider = new OFREPProvider({});
+const backupProvider = new EnvVarProvider();
+
+// Create multi-provider with a strategy
+const multiProvider = new MultiProvider(
+  [{ provider: primaryProvider }, { provider: backupProvider }],
+  new FirstMatchStrategy(),
+);
+
+// Register the multi-provider
+await OpenFeature.setProviderAndWait(multiProvider);
 
 const app = Fastify({ logger: true });
 

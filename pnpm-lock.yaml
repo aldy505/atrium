@@ -48,6 +48,15 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.62.2
         version: 5.90.21(react@18.3.1)
+      '@openfeature/env-var-provider':
+        specifier: ^0.3.1
+        version: 0.3.1(@openfeature/server-sdk@1.20.1(@openfeature/core@1.9.1))
+      '@openfeature/ofrep-provider':
+        specifier: ^0.2.3
+        version: 0.2.3(@openfeature/core@1.9.1)(@openfeature/server-sdk@1.20.1(@openfeature/core@1.9.1))
+      '@openfeature/server-sdk':
+        specifier: ^1.20.1
+        version: 1.20.1(@openfeature/core@1.9.1)
       '@types/mime-types':
         specifier: ^2.1.4
         version: 2.1.4
@@ -726,6 +735,30 @@ packages:
   '@lukeed/ms@2.0.2':
     resolution: {integrity: sha512-9I2Zn6+NJLfaGoz9jN3lpwDgAYvfGeNYdbAIjJOqzs4Tpc+VU3Jqq4IofSUBKajiDS8k9fZIg18/z13mpk1bsA==}
     engines: {node: '>=8'}
+
+  '@openfeature/core@1.9.1':
+    resolution: {integrity: sha512-YySPtH4s/rKKnHRU0xyFGrqMU8XA+OIPNWDrlEFxE6DCVWCIrxE5YpiB94YD2jMFn6SSdA0cwQ8vLkCkl8lm8A==}
+
+  '@openfeature/env-var-provider@0.3.1':
+    resolution: {integrity: sha512-Ga7vk4Ir8LzJzfSnOe/6oap1vW9KONWwIGar0XKh6o6mxytvE8EFQ7CtqZGbsKBZsIW6t/pjWXvtiOk1+QTUMg==}
+    peerDependencies:
+      '@openfeature/server-sdk': ^1.13.0
+
+  '@openfeature/ofrep-core@2.0.0':
+    resolution: {integrity: sha512-7adN+3lvx7aAM/4BG8CHBGoRoePPtTa6EVygnNFMECcJvXiXFRcUTUq5lezvYdVG0LGSaw7zkd+hkc8Uwu3HNg==}
+    peerDependencies:
+      '@openfeature/core': ^1.6.0
+
+  '@openfeature/ofrep-provider@0.2.3':
+    resolution: {integrity: sha512-RNmcfSZS7gbD/1SjJ+RK0XeCPZaJeT4nF+Y9Vjpq/6CXXoAYyr5VhebWFF73NLZoSe6AMR2hMv2PleLEBZ6q6w==}
+    peerDependencies:
+      '@openfeature/server-sdk': ^1.6.0
+
+  '@openfeature/server-sdk@1.20.1':
+    resolution: {integrity: sha512-jzz++kblADniuc7hONZ4DlRsoektCMDX5PPHoltn0hYWWw/Zm6sh3f7z5mGUX2XOikWKNVCtUQ3gWsdmIdHHXg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@openfeature/core': ^1.9.0
 
   '@opentelemetry/api-logs@0.207.0':
     resolution: {integrity: sha512-lAb0jQRVyleQQGiuuvCOTDVspc14nx6XJjP4FspJ1sNARo3Regq4ZZbrc3rN4b1TYSuUCvgH+UXUPug4SLOqEQ==}
@@ -3393,6 +3426,27 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.5.5
 
   '@lukeed/ms@2.0.2': {}
+
+  '@openfeature/core@1.9.1': {}
+
+  '@openfeature/env-var-provider@0.3.1(@openfeature/server-sdk@1.20.1(@openfeature/core@1.9.1))':
+    dependencies:
+      '@openfeature/server-sdk': 1.20.1(@openfeature/core@1.9.1)
+
+  '@openfeature/ofrep-core@2.0.0(@openfeature/core@1.9.1)':
+    dependencies:
+      '@openfeature/core': 1.9.1
+
+  '@openfeature/ofrep-provider@0.2.3(@openfeature/core@1.9.1)(@openfeature/server-sdk@1.20.1(@openfeature/core@1.9.1))':
+    dependencies:
+      '@openfeature/ofrep-core': 2.0.0(@openfeature/core@1.9.1)
+      '@openfeature/server-sdk': 1.20.1(@openfeature/core@1.9.1)
+    transitivePeerDependencies:
+      - '@openfeature/core'
+
+  '@openfeature/server-sdk@1.20.1(@openfeature/core@1.9.1)':
+    dependencies:
+      '@openfeature/core': 1.9.1
 
   '@opentelemetry/api-logs@0.207.0':
     dependencies:
