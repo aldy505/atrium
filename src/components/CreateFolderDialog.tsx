@@ -22,7 +22,7 @@ const getValidationError = (value: string): string | null => {
   }
 
   if (trimmed.includes("/") || trimmed.includes("\\")) {
-    return "Folder name cannot contain / or \\.";
+    return "Folder name cannot contain / or backslash.";
   }
 
   if (trimmed.length > MAX_FOLDER_NAME_LENGTH) {

@@ -253,6 +253,9 @@ export const App = () => {
       setCreateFolderOpen(false);
       void handleRefresh();
     },
+    onError: (error) => {
+      setGlobalError(error instanceof Error ? error.message : "Create folder failed");
+    },
   });
 
   const statusText = useMemo(() => {

@@ -111,7 +111,7 @@ const normalizeFolderName = (value: string): string => {
   }
 
   if (trimmed.includes("/") || trimmed.includes("\\")) {
-    throw new AppError("Folder name cannot contain / or \\\.", 400, true);
+    throw new AppError("Folder name cannot contain / or backslash.", 400, true);
   }
 
   if (trimmed.length > 1024) {
@@ -404,6 +404,10 @@ export const registerS3Routes = (app: FastifyInstance): void => {
     const name = normalizeFolderName(parsed.data.name);
     const normalizedPrefix = normalizePrefix(parsed.data.prefix);
     const folderKey = `${normalizedPrefix}${name}/`;
+
+    if (Buffer.byteLength(folderKey, "utf8") > 1024) {
+      throw new AppError("Folder path is too long.", 400, true);
+    }
 
     try {
       const result = await createFolder(request.sessionCredentials!, parsed.data.bucket, folderKey);
