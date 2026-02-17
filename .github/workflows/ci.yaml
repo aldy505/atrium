@@ -75,7 +75,7 @@ jobs:
         run: pnpm test
   build-artifact:
     name: Build artifact
-    # if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     strategy:
       matrix:
         runs-on: [ubuntu-24.04, ubuntu-24.04-arm, windows-latest]
