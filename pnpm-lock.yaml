@@ -23,6 +23,15 @@ importers:
       '@fastify/static':
         specifier: ^8.0.1
         version: 8.3.0
+      '@openfeature/env-var-provider':
+        specifier: ^0.3.1
+        version: 0.3.1(@openfeature/server-sdk@1.20.1(@openfeature/core@1.9.1))
+      '@openfeature/ofrep-provider':
+        specifier: ^0.2.3
+        version: 0.2.3(@openfeature/core@1.9.1)(@openfeature/server-sdk@1.20.1(@openfeature/core@1.9.1))
+      '@openfeature/server-sdk':
+        specifier: ^1.20.1
+        version: 1.20.1(@openfeature/core@1.9.1)
       '@sentry/node':
         specifier: ^10.38.0
         version: 10.38.0
@@ -48,15 +57,6 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.62.2
         version: 5.90.21(react@18.3.1)
-      '@openfeature/env-var-provider':
-        specifier: ^0.3.1
-        version: 0.3.1(@openfeature/server-sdk@1.20.1(@openfeature/core@1.9.1))
-      '@openfeature/ofrep-provider':
-        specifier: ^0.2.3
-        version: 0.2.3(@openfeature/core@1.9.1)(@openfeature/server-sdk@1.20.1(@openfeature/core@1.9.1))
-      '@openfeature/server-sdk':
-        specifier: ^1.20.1
-        version: 1.20.1(@openfeature/core@1.9.1)
       '@types/mime-types':
         specifier: ^2.1.4
         version: 2.1.4
