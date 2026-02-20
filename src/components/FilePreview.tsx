@@ -241,6 +241,11 @@ export const FilePreview = ({ bucket, file }: FilePreviewProps) => {
     <div className="preview-panel">
       <h3>{file.name}</h3>
       <p>No preview available for this file type.</p>
+      <PreviewMetadata
+        size={metadataSize}
+        lastModified={metadataLastModified}
+        contentType={metadataContentType}
+      />
     </div>
   );
 };
