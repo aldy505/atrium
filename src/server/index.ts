@@ -19,7 +19,9 @@ import { registerS3Routes } from "./routes.js";
 import { captureServerError, registerObservabilityHooks, sentryLog } from "./observability.js";
 
 // Create providers
-const primaryProvider = new OFREPProvider({});
+const primaryProvider = new OFREPProvider({
+  baseUrl: process.env.OFREP_ENDPOINT ?? "http://localhost:2321",
+});
 const backupProvider = new EnvVarProvider();
 
 // Create multi-provider with a strategy
