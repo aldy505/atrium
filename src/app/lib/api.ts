@@ -84,8 +84,8 @@ export const uploadFile = (
   const promise = new Promise<void>((resolve, reject) => {
     const params = new URLSearchParams({ bucket, prefix });
     const formData = new FormData();
-    formData.append("file", file);
     formData.append("relativePath", relativePath);
+    formData.append("file", file);
 
     xhr = new XMLHttpRequest();
     xhr.open("POST", `/api/s3/upload?${params.toString()}`);
