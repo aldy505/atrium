@@ -35,3 +35,25 @@ export type UploadProgress = {
   filename: string;
   percent: number;
 };
+
+export type UploadSourceFile = {
+  file: File;
+  relativePath: string;
+};
+
+export type UploadSelection = {
+  files: UploadSourceFile[];
+  emptyFolders: string[];
+};
+
+export type UploadTaskStatus = "queued" | "uploading" | "success" | "error" | "canceled";
+
+export type UploadTask = {
+  id: string;
+  filename: string;
+  relativePath: string;
+  size: number;
+  percent: number;
+  status: UploadTaskStatus;
+  error?: string;
+};

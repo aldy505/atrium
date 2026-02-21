@@ -121,6 +121,51 @@ const normalizeFolderName = (value: string): string => {
   return trimmed;
 };
 
+const normalizeUploadPath = (value: string): string => {
+  const normalized = value.replace(/\\+/g, "/").trim().replace(/^\/+/, "");
+
+  if (!normalized) {
+    throw new AppError("Upload path is required.", 400, true);
+  }
+
+  const segments = normalized
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  if (!segments.length) {
+    throw new AppError("Upload path is required.", 400, true);
+  }
+
+  for (const segment of segments) {
+    if (segment === "." || segment === "..") {
+      throw new AppError("Upload path contains invalid segments.", 400, true);
+    }
+
+    if (segment.includes("\u0000")) {
+      throw new AppError("Upload path contains invalid characters.", 400, true);
+    }
+  }
+
+  return segments.join("/");
+};
+
+const getRelativePathFieldValue = (file: { fields?: unknown }): string | undefined => {
+  if (!file.fields || typeof file.fields !== "object") {
+    return undefined;
+  }
+
+  const fields = file.fields as Record<string, unknown>;
+  const field = fields.relativePath;
+
+  if (Array.isArray(field) || !field || typeof field !== "object") {
+    return undefined;
+  }
+
+  const value = (field as { value?: unknown }).value;
+  return typeof value === "string" ? value : undefined;
+};
+
 const getParentPrefixFromObjectKey = (key: string): string => {
   const lastSlash = key.lastIndexOf("/");
   return lastSlash === -1 ? "" : key.slice(0, lastSlash + 1);
@@ -355,7 +400,14 @@ export const registerS3Routes = (app: FastifyInstance): void => {
     }
 
     const buffer = await file.toBuffer();
-    const key = `${query.prefix}${file.filename}`;
+    const normalizedPrefix = normalizePrefix(query.prefix);
+    const fieldRelativePath = getRelativePathFieldValue(file);
+    const normalizedRelativePath = normalizeUploadPath(fieldRelativePath ?? file.filename);
+    const key = `${normalizedPrefix}${normalizedRelativePath}`;
+
+    if (Buffer.byteLength(key, "utf8") > 1024) {
+      throw new AppError("Upload path is too long.", 400, true);
+    }
 
     try {
       await uploadObject(request.sessionCredentials!, query.bucket, key, buffer, file.mimetype);

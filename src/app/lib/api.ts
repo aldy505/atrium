@@ -1,5 +1,10 @@
 import type { ListObjectsResponse, ObjectMetadataResponse } from "./types";
 
+export type UploadRequest = {
+  promise: Promise<void>;
+  abort: () => void;
+};
+
 const parseResponse = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: string };
@@ -70,14 +75,19 @@ export const uploadFile = (
   bucket: string,
   prefix: string,
   file: File,
+  relativePath: string,
   onProgress: (percent: number) => void,
-): Promise<void> => {
-  return new Promise((resolve, reject) => {
+): UploadRequest => {
+  let aborted = false;
+  let xhr: XMLHttpRequest | null = null;
+
+  const promise = new Promise<void>((resolve, reject) => {
     const params = new URLSearchParams({ bucket, prefix });
     const formData = new FormData();
+    formData.append("relativePath", relativePath);
     formData.append("file", file);
 
-    const xhr = new XMLHttpRequest();
+    xhr = new XMLHttpRequest();
     xhr.open("POST", `/api/s3/upload?${params.toString()}`);
     xhr.withCredentials = true;
 
@@ -90,21 +100,45 @@ export const uploadFile = (
     };
 
     xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
+      const currentXhr = xhr;
+
+      if (!currentXhr) {
+        reject(new Error("Upload failed"));
+        return;
+      }
+
+      if (aborted) {
+        reject(Object.assign(new Error("Upload canceled"), { name: "AbortError" }));
+        return;
+      }
+
+      if (currentXhr.status >= 200 && currentXhr.status < 300) {
         resolve();
       } else {
         try {
-          const body = JSON.parse(xhr.responseText) as { error?: string };
-          reject(new Error(body.error || `Upload failed (${xhr.status})`));
+          const body = JSON.parse(currentXhr.responseText) as { error?: string };
+          reject(new Error(body.error || `Upload failed (${currentXhr.status})`));
         } catch {
-          reject(new Error(`Upload failed (${xhr.status})`));
+          reject(new Error(`Upload failed (${currentXhr.status})`));
         }
       }
     };
 
     xhr.onerror = () => reject(new Error("Upload failed due to network error"));
+    xhr.onabort = () => {
+      aborted = true;
+      reject(Object.assign(new Error("Upload canceled"), { name: "AbortError" }));
+    };
     xhr.send(formData);
   });
+
+  return {
+    promise,
+    abort: () => {
+      aborted = true;
+      xhr?.abort();
+    },
+  };
 };
 
 export const deleteObject = async (bucket: string, key: string): Promise<void> => {

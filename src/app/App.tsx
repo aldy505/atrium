@@ -12,7 +12,7 @@ import {
   logout,
   uploadFile,
 } from "./lib/api";
-import type { FileEntry, UploadProgress } from "./lib/types";
+import type { FileEntry, UploadSelection, UploadSourceFile, UploadTask } from "./lib/types";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { CreateFolderDialog } from "../components/CreateFolderDialog";
@@ -23,6 +23,23 @@ import { UploadDropzone } from "../components/UploadDropzone";
 
 type DeleteTarget = { type: "file"; key: string } | { type: "folder"; key: string } | null;
 
+const UPLOAD_CONCURRENCY = 3;
+
+const normalizeRelativePath = (value: string): string => {
+  return value
+    .replace(/\\+/g, "/")
+    .split("/")
+    .filter((segment) => Boolean(segment) && segment !== ".")
+    .join("/");
+};
+
+const splitPathSegments = (value: string): string[] => {
+  return normalizeRelativePath(value)
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+};
+
 export const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
@@ -32,11 +49,16 @@ export const App = () => {
   const [selectedFile, setSelectedFile] = useState<FileEntry | null>(null);
   const [filter, setFilter] = useState("");
   const [autoLoadOnScroll, setAutoLoadOnScroll] = useState(true);
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
+  const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([]);
+  const [isUploadingBatch, setIsUploadingBatch] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const uploadSourceMapRef = useRef<Map<string, UploadSourceFile>>(new Map());
+  const uploadAbortMapRef = useRef<Map<string, () => void>>(new Map());
+  const canceledUploadTaskIdsRef = useRef<Set<string>>(new Set());
+  const uploadBatchInFlightRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -192,30 +214,246 @@ export const App = () => {
     await bucketsQuery.refetch();
   };
 
-  const handleUpload = async (files: FileList) => {
+  const updateUploadTask = (taskId: string, updater: (task: UploadTask) => UploadTask): void => {
+    setUploadTasks((prev) => prev.map((task) => (task.id === taskId ? updater(task) : task)));
+  };
+
+  const cancelUploadTask = (taskId: string): void => {
+    canceledUploadTaskIdsRef.current.add(taskId);
+    uploadAbortMapRef.current.get(taskId)?.();
+
+    updateUploadTask(taskId, (task) => {
+      if (task.status === "success") {
+        return task;
+      }
+
+      return {
+        ...task,
+        status: "canceled",
+        error: "Canceled",
+      };
+    });
+  };
+
+  const cancelAllUploads = (): void => {
+    setUploadTasks((prev) =>
+      prev.map((task) => {
+        if (task.status === "success" || task.status === "error" || task.status === "canceled") {
+          return task;
+        }
+
+        canceledUploadTaskIdsRef.current.add(task.id);
+        uploadAbortMapRef.current.get(task.id)?.();
+
+        return {
+          ...task,
+          status: "canceled",
+          error: "Canceled",
+        };
+      }),
+    );
+  };
+
+  const ensureFolderPath = async (
+    bucket: string,
+    prefix: string,
+    relativeFolderPath: string,
+    createdFolders: Set<string>,
+  ): Promise<void> => {
+    const segments = splitPathSegments(relativeFolderPath);
+
+    if (!segments.length) {
+      return;
+    }
+
+    let cursor = prefix;
+
+    for (const segment of segments) {
+      const cacheKey = `${cursor}::${segment}`;
+
+      if (!createdFolders.has(cacheKey)) {
+        const response = await createFolder(bucket, cursor, segment);
+        cursor = response.key;
+        createdFolders.add(cacheKey);
+      } else {
+        cursor = `${cursor}${segment}/`;
+      }
+    }
+  };
+
+  const runUploadBatch = async (
+    bucket: string,
+    prefix: string,
+    sourceFiles: UploadSourceFile[],
+    emptyFolders: string[],
+  ): Promise<void> => {
+    if (uploadBatchInFlightRef.current) {
+      setGlobalError("Another upload batch is still running");
+      return;
+    }
+
+    const dedupedFiles = new Map<string, UploadSourceFile>();
+
+    for (const source of sourceFiles) {
+      const path = normalizeRelativePath(source.relativePath || source.file.name);
+      if (!path) {
+        continue;
+      }
+
+      dedupedFiles.set(path, {
+        file: source.file,
+        relativePath: path,
+      });
+    }
+
+    const taskRecords = Array.from(dedupedFiles.values()).map((source) => {
+      const taskId = crypto.randomUUID();
+
+      uploadSourceMapRef.current.set(taskId, source);
+
+      return {
+        id: taskId,
+        filename: source.file.name,
+        relativePath: source.relativePath,
+        size: source.file.size,
+        percent: 0,
+        status: "queued",
+      } satisfies UploadTask;
+    });
+
+    if (!taskRecords.length && !emptyFolders.length) {
+      return;
+    }
+
+    uploadBatchInFlightRef.current = true;
+    setUploadTasks((prev) => [...prev, ...taskRecords]);
+    setIsUploadingBatch(true);
+    setGlobalError(null);
+
+    try {
+      const createdFolders = new Set<string>();
+
+      for (const folderPath of Array.from(new Set(emptyFolders))) {
+        await ensureFolderPath(bucket, prefix, folderPath, createdFolders);
+      }
+
+      const queue = taskRecords.map((task) => task.id);
+      let activeCount = 0;
+
+      await new Promise<void>((resolve) => {
+        const launchNext = () => {
+          while (activeCount < UPLOAD_CONCURRENCY && queue.length) {
+            const taskId = queue.shift();
+
+            if (!taskId) {
+              continue;
+            }
+
+            if (canceledUploadTaskIdsRef.current.has(taskId)) {
+              continue;
+            }
+
+            const source = uploadSourceMapRef.current.get(taskId);
+
+            if (!source) {
+              continue;
+            }
+
+            activeCount += 1;
+
+            updateUploadTask(taskId, (task) => ({
+              ...task,
+              status: "uploading",
+              percent: task.percent || 0,
+              error: undefined,
+            }));
+
+            const request = uploadFile(
+              bucket,
+              prefix,
+              source.file,
+              source.relativePath,
+              (percent) => {
+                updateUploadTask(taskId, (task) => ({ ...task, percent }));
+              },
+            );
+
+            uploadAbortMapRef.current.set(taskId, request.abort);
+
+            void request.promise
+              .then(() => {
+                updateUploadTask(taskId, (task) => ({
+                  ...task,
+                  percent: 100,
+                  status: "success",
+                  error: undefined,
+                }));
+              })
+              .catch((error: unknown) => {
+                const isAbort =
+                  error instanceof Error &&
+                  (error.name === "AbortError" || error.message === "Upload canceled");
+
+                updateUploadTask(taskId, (task) => ({
+                  ...task,
+                  status: isAbort ? "canceled" : "error",
+                  error: isAbort
+                    ? "Canceled"
+                    : error instanceof Error
+                      ? error.message
+                      : "Upload failed",
+                }));
+              })
+              .finally(() => {
+                activeCount = Math.max(0, activeCount - 1);
+                uploadAbortMapRef.current.delete(taskId);
+
+                if (!queue.length && activeCount === 0) {
+                  resolve();
+                  return;
+                }
+
+                launchNext();
+              });
+          }
+
+          if (!queue.length && activeCount === 0) {
+            resolve();
+          }
+        };
+
+        launchNext();
+      });
+
+      await handleRefresh();
+    } catch (error) {
+      setGlobalError(error instanceof Error ? error.message : "Upload failed");
+    } finally {
+      uploadBatchInFlightRef.current = false;
+      setIsUploadingBatch(false);
+    }
+  };
+
+  const handleUploadSelection = async (selection: UploadSelection) => {
     if (!selectedBucket) {
       return;
     }
 
-    setGlobalError(null);
+    await runUploadBatch(selectedBucket, currentPrefix, selection.files, selection.emptyFolders);
+  };
 
-    for (const file of Array.from(files)) {
-      setUploadProgress((prev) => [...prev, { filename: file.name, percent: 0 }]);
-
-      try {
-        await uploadFile(selectedBucket, currentPrefix, file, (percent) => {
-          setUploadProgress((prev) =>
-            prev.map((item) => (item.filename === file.name ? { ...item, percent } : item)),
-          );
-        });
-      } catch (error) {
-        setGlobalError(error instanceof Error ? error.message : "Upload failed");
-      } finally {
-        setUploadProgress((prev) => prev.filter((item) => item.filename !== file.name));
-      }
+  const retryUploadTask = async (taskId: string): Promise<void> => {
+    if (!selectedBucket) {
+      return;
     }
 
-    await handleRefresh();
+    const source = uploadSourceMapRef.current.get(taskId);
+
+    if (!source) {
+      return;
+    }
+
+    await runUploadBatch(selectedBucket, currentPrefix, [source], []);
   };
 
   const deleteMutation = useMutation({
@@ -275,6 +513,34 @@ export const App = () => {
       ? objectsQuery.error.message
       : "Failed to load directory list.";
   }, [objectsQuery.error, objectsQuery.isError]);
+
+  const uploadSummary = useMemo(() => {
+    if (!uploadTasks.length) {
+      return null;
+    }
+
+    const totalBytes = uploadTasks.reduce((sum, task) => sum + task.size, 0);
+    const uploadedBytes = uploadTasks.reduce((sum, task) => {
+      return sum + Math.floor((task.size * task.percent) / 100);
+    }, 0);
+    const doneCount = uploadTasks.filter((task) => task.status === "success").length;
+    const errorCount = uploadTasks.filter((task) => task.status === "error").length;
+    const canceledCount = uploadTasks.filter((task) => task.status === "canceled").length;
+    const activeCount = uploadTasks.filter(
+      (task) => task.status === "uploading" || task.status === "queued",
+    ).length;
+
+    const overallPercent = totalBytes === 0 ? 100 : Math.round((uploadedBytes / totalBytes) * 100);
+
+    return {
+      overallPercent,
+      doneCount,
+      errorCount,
+      canceledCount,
+      activeCount,
+      totalCount: uploadTasks.length,
+    };
+  }, [uploadTasks]);
 
   if (authLoading) {
     return (
@@ -370,14 +636,54 @@ export const App = () => {
           </div>
         </header>
 
-        <UploadDropzone disabled={!selectedBucket} onFilesSelected={handleUpload} />
+        <UploadDropzone
+          disabled={!selectedBucket || isUploadingBatch}
+          onSelection={handleUploadSelection}
+        />
 
-        {uploadProgress.length ? (
+        {uploadSummary ? (
           <div className="upload-list">
-            {uploadProgress.map((item) => (
-              <div key={item.filename} className="upload-item">
-                <span>{item.filename}</span>
-                <span>{item.percent}%</span>
+            <div className="upload-summary">
+              <strong>
+                Uploads: {uploadSummary.overallPercent}% ({uploadSummary.doneCount}/
+                {uploadSummary.totalCount})
+              </strong>
+              <span>
+                Active {uploadSummary.activeCount} · Errors {uploadSummary.errorCount} · Canceled{" "}
+                {uploadSummary.canceledCount}
+              </span>
+              <div className="upload-summary-actions">
+                <button type="button" onClick={cancelAllUploads} disabled={!isUploadingBatch}>
+                  Cancel all
+                </button>
+              </div>
+            </div>
+
+            {uploadTasks.map((item) => (
+              <div key={item.id} className="upload-item">
+                <div className="upload-item-main">
+                  <span className="upload-item-path">{item.relativePath}</span>
+                  <span>
+                    {item.percent}% · {item.status}
+                  </span>
+                </div>
+                <div className="upload-item-actions">
+                  {item.status === "queued" || item.status === "uploading" ? (
+                    <button type="button" onClick={() => cancelUploadTask(item.id)}>
+                      Cancel
+                    </button>
+                  ) : null}
+                  {item.status === "error" || item.status === "canceled" ? (
+                    <button
+                      type="button"
+                      onClick={() => void retryUploadTask(item.id)}
+                      disabled={isUploadingBatch}
+                    >
+                      Retry
+                    </button>
+                  ) : null}
+                  {item.error ? <span className="upload-item-error">{item.error}</span> : null}
+                </div>
               </div>
             ))}
           </div>
