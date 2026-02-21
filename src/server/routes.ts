@@ -457,7 +457,12 @@ export const registerS3Routes = (app: FastifyInstance): void => {
       }
 
       if (request.sessionToken) {
-        await trackBucketAccess(request.sessionToken, parsed.data.bucketName);
+        void trackBucketAccess(request.sessionToken, parsed.data.bucketName).catch((error) => {
+          request.log.error(
+            { error, bucket: parsed.data.bucketName },
+            "Failed to track bucket access",
+          );
+        });
       }
 
       void calculateBucketSizeWithLock(

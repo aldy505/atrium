@@ -12,6 +12,13 @@ const redisKeyPrefix = "atrium";
 const bucketSizeFeatureFlag = "enable-background-bucket-size-calculation";
 const trackedSessionBucketsTTLSeconds = 86400 * 7;
 const progressLogEveryObjects = 50000;
+const bucketSizeCycleLockKey = `${redisKeyPrefix}:lock:bucket-size-cycle`;
+const releaseLockIfOwnerScript = `
+if redis.call("get", KEYS[1]) == ARGV[1] then
+  return redis.call("del", KEYS[1])
+end
+return 0
+`;
 
 export type BucketSizeResult = {
   bucket: string;
@@ -48,6 +55,10 @@ const bucketSizeKey = (bucketName: string, accessKeyId: string): string => {
 
 const bucketSizeLockKey = (bucketName: string, accessKeyId: string): string => {
   return `${redisKeyPrefix}:lock:bucket-size:${getCredentialScope(accessKeyId)}:${encodeSegment(bucketName)}`;
+};
+
+const releaseLockIfOwner = async (lockKey: string, ownerId: string): Promise<void> => {
+  await redis.eval(releaseLockIfOwnerScript, 1, lockKey, ownerId);
 };
 
 const parseSessionCredentials = (value: string | null): SessionCredentials | null => {
@@ -321,10 +332,7 @@ export const calculateBucketSizeWithLock = async (
     });
     return "calculated";
   } finally {
-    const lockOwner = await redis.get(lockKey);
-    if (lockOwner === workerId) {
-      await redis.del(lockKey);
-    }
+    await releaseLockIfOwner(lockKey, workerId);
   }
 };
 
@@ -334,23 +342,42 @@ const runBackgroundBucketSizeCycle = async (logger: FastifyBaseLogger): Promise<
     return;
   }
 
-  const keys = await scanKeys(`${redisKeyPrefix}:session:*`);
+  const cycleLockTtlSeconds = Math.max(config.BUCKET_SIZE_CALC_INTERVAL_HOURS * 3600, 300);
+  const cycleWorkerId = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const cycleLockAcquired = await redis.set(
+    bucketSizeCycleLockKey,
+    cycleWorkerId,
+    "EX",
+    cycleLockTtlSeconds,
+    "NX",
+  );
 
-  for (const key of keys) {
-    const token = key.slice(sessionKey("").length);
-    if (!token) {
-      continue;
-    }
+  if (!cycleLockAcquired) {
+    logger.info("Background bucket size cycle skipped because lock is held by another worker");
+    return;
+  }
 
-    const credentials = parseSessionCredentials(await redis.get(sessionKey(token)));
-    if (!credentials) {
-      continue;
-    }
+  try {
+    const keys = await scanKeys(`${redisKeyPrefix}:session:*`);
 
-    const buckets = await getTrackedBucketsForSession(token);
-    for (const bucket of buckets) {
-      await calculateBucketSizeWithLock(bucket, credentials, logger);
+    for (const key of keys) {
+      const token = key.slice(sessionKey("").length);
+      if (!token) {
+        continue;
+      }
+
+      const credentials = parseSessionCredentials(await redis.get(sessionKey(token)));
+      if (!credentials) {
+        continue;
+      }
+
+      const buckets = await getTrackedBucketsForSession(token);
+      for (const bucket of buckets) {
+        await calculateBucketSizeWithLock(bucket, credentials, logger);
+      }
     }
+  } finally {
+    await releaseLockIfOwner(bucketSizeCycleLockKey, cycleWorkerId);
   }
 };
 
