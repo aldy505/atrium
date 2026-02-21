@@ -24,19 +24,19 @@ describe("session", () => {
 
   async function cleanupTrackedCacheEntries(): Promise<void> {
     for (const hash of cacheTokenHashes) {
-      await cleanupRedisKeys(redis, `cache_s3_list:${hash}:*`);
+      await cleanupRedisKeys(redis, `atrium:cache_s3_list:${hash}:*`);
     }
     cacheTokenHashes.clear();
   }
 
   beforeEach(async () => {
     // Clean up any existing test data
-    await cleanupRedisKeys(redis, "session:*");
+    await cleanupRedisKeys(redis, "atrium:session:*");
     cacheTokenHashes.clear();
   });
 
   afterEach(async () => {
-    await cleanupRedisKeys(redis, "session:*");
+    await cleanupRedisKeys(redis, "atrium:session:*");
     await cleanupTrackedCacheEntries();
   });
 
@@ -58,7 +58,7 @@ describe("session", () => {
       const credentials: SessionCredentials = TEST_CREDENTIALS;
       const token = await createSession(credentials);
 
-      const stored = await redis.get(`session:${token}`);
+      const stored = await redis.get(`atrium:session:${token}`);
       expect(stored).toBeDefined();
 
       const parsed = JSON.parse(stored!) as SessionCredentials;
@@ -70,7 +70,7 @@ describe("session", () => {
       const credentials: SessionCredentials = TEST_CREDENTIALS;
       const token = await createSession(credentials);
 
-      const ttl = await redis.ttl(`session:${token}`);
+      const ttl = await redis.ttl(`atrium:session:${token}`);
       expect(ttl).toBeGreaterThan(0);
       expect(ttl).toBeLessThanOrEqual(86400); // Default SESSION_TTL_SECONDS
     });
@@ -99,7 +99,7 @@ describe("session", () => {
       const token = await createSession(credentials);
 
       // Get initial TTL
-      const ttlInitial = await redis.ttl(`session:${token}`);
+      const ttlInitial = await redis.ttl(`atrium:session:${token}`);
       expect(ttlInitial).toBeGreaterThan(0);
       expect(ttlInitial).toBeLessThanOrEqual(86400);
 
@@ -112,7 +112,7 @@ describe("session", () => {
       expect(retrieved!.accessKeyId).toBe(credentials.accessKeyId);
 
       // Get TTL after refresh
-      const ttlAfter = await redis.ttl(`session:${token}`);
+      const ttlAfter = await redis.ttl(`atrium:session:${token}`);
 
       // After refresh, TTL should be close to the max again
       // The implementation sets it to SESSION_TTL_SECONDS on each access
@@ -228,7 +228,7 @@ describe("session", () => {
       const encodedBucket = Buffer.from(bucket, "utf8").toString("base64url");
       const encodedPrefix = Buffer.from(prefix, "utf8").toString("base64url");
       const encodedToken = Buffer.from("", "utf8").toString("base64url");
-      const cacheKey = `cache_s3_list:${hash}:${encodedBucket}:${encodedPrefix}:${encodedToken}:200`;
+      const cacheKey = `atrium:cache_s3_list:${hash}:${encodedBucket}:${encodedPrefix}:${encodedToken}:200`;
 
       const ttl = await redis.ttl(cacheKey);
       expect(ttl).toBeGreaterThan(0);

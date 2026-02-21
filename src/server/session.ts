@@ -5,8 +5,9 @@ import type { ListObjectsResponse, SessionCredentials } from "./types.js";
 
 const redis = new Redis(config.REDIS_URL);
 
-const sessionKey = (token: string) => `session:${token}`;
-const listCacheKeyPrefix = "cache_s3_list";
+const redisKeyPrefix = "atrium";
+const sessionKey = (token: string) => `${redisKeyPrefix}:session:${token}`;
+const listCacheKeyPrefix = `${redisKeyPrefix}:cache_s3_list`;
 
 const encodeSegment = (value: string): string => Buffer.from(value, "utf8").toString("base64url");
 
@@ -69,13 +70,19 @@ const deleteKeys = async (keys: string[]): Promise<number> => {
 };
 
 const readPrefixFromListCacheKey = (cacheKey: string): string | null => {
-  const segments = cacheKey.split(":");
+  const prefixWithSeparator = `${listCacheKeyPrefix}:`;
 
-  if (segments.length !== 6 || segments[0] !== listCacheKeyPrefix) {
+  if (!cacheKey.startsWith(prefixWithSeparator)) {
     return null;
   }
 
-  return decodeSegment(segments[3]);
+  const segments = cacheKey.slice(prefixWithSeparator.length).split(":");
+
+  if (segments.length !== 5) {
+    return null;
+  }
+
+  return decodeSegment(segments[2]);
 };
 
 export const createSession = async (credentials: SessionCredentials): Promise<string> => {
