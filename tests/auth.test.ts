@@ -32,12 +32,12 @@ describe("auth", () => {
   const redis = createTestRedisClient();
 
   beforeEach(async () => {
-    await cleanupRedisKeys(redis, "session:*");
+    await cleanupRedisKeys(redis, "atrium:session:*");
     vi.clearAllMocks();
   });
 
   afterEach(async () => {
-    await cleanupRedisKeys(redis, "session:*");
+    await cleanupRedisKeys(redis, "atrium:session:*");
   });
 
   afterAll(async () => {
