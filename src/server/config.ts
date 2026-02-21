@@ -21,6 +21,9 @@ const envSchema = z.object({
   S3_LIST_CACHE_INCLUDE_HEADERS: z
     .preprocess((v) => parseEnvBool(v, true), z.boolean())
     .default(true),
+  BUCKET_SIZE_CALC_INTERVAL_HOURS: z.coerce.number().int().positive().default(1),
+  BUCKET_SIZE_MAX_DURATION_MS: z.coerce.number().int().positive().default(300000),
+  BUCKET_SIZE_MAX_OBJECTS: z.coerce.number().int().positive().default(1000000),
   S3_ENDPOINT: z.string().min(1),
   S3_REGION: z.string().min(1),
   S3_FORCE_PATH_STYLE: z.preprocess((v) => parseEnvBool(v, true), z.boolean()).default(true),

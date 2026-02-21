@@ -19,6 +19,9 @@ describe("config", () => {
       expect(config.SESSION_TTL_SECONDS).toBe(86400);
       expect(config.COOKIE_NAME).toBe("atrium_session");
       expect(config.MAX_UPLOAD_SIZE_MB).toBe(100);
+      expect(config.BUCKET_SIZE_CALC_INTERVAL_HOURS).toBe(1);
+      expect(config.BUCKET_SIZE_MAX_DURATION_MS).toBe(300000);
+      expect(config.BUCKET_SIZE_MAX_OBJECTS).toBe(1000000);
     });
 
     it("should have valid NODE_ENV", () => {
@@ -35,6 +38,12 @@ describe("config", () => {
 
     it("should have valid AUDIT_LOG_SINK", () => {
       expect(["filesystem", "loki", "none"]).toContain(config.AUDIT_LOG_SINK);
+    });
+
+    it("should have valid bucket size scheduler limits", () => {
+      expect(config.BUCKET_SIZE_CALC_INTERVAL_HOURS).toBeGreaterThan(0);
+      expect(config.BUCKET_SIZE_MAX_DURATION_MS).toBeGreaterThan(0);
+      expect(config.BUCKET_SIZE_MAX_OBJECTS).toBeGreaterThan(0);
     });
   });
 
