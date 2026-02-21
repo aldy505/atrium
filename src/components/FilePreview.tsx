@@ -194,15 +194,15 @@ export const FilePreview = ({ bucket, file }: FilePreviewProps) => {
     return (
       <div className="preview-panel">
         <h3>{file.name}</h3>
-        <img
-          src={getDownloadUrl(bucket, file.key, true)}
-          alt={file.name}
-          className="preview-image"
-        />
         <PreviewMetadata
           size={metadataSize}
           lastModified={metadataLastModified}
           contentType={metadataContentType}
+        />
+        <img
+          src={getDownloadUrl(bucket, file.key, true)}
+          alt={file.name}
+          className="preview-image"
         />
       </div>
     );
@@ -212,6 +212,11 @@ export const FilePreview = ({ bucket, file }: FilePreviewProps) => {
     return (
       <div className="preview-panel">
         <h3>{file.name}</h3>
+        <PreviewMetadata
+          size={metadataSize}
+          lastModified={metadataLastModified}
+          contentType={metadataContentType}
+        />
         {isLoading ? (
           <div className="center-feedback status-banner" aria-live="polite">
             <span className="spinner" aria-hidden="true" />
@@ -228,11 +233,6 @@ export const FilePreview = ({ bucket, file }: FilePreviewProps) => {
             <pre className="preview-text" dangerouslySetInnerHTML={{ __html: highlighted }} />
           </div>
         ) : null}
-        <PreviewMetadata
-          size={metadataSize}
-          lastModified={metadataLastModified}
-          contentType={metadataContentType}
-        />
       </div>
     );
   }
@@ -240,12 +240,12 @@ export const FilePreview = ({ bucket, file }: FilePreviewProps) => {
   return (
     <div className="preview-panel">
       <h3>{file.name}</h3>
-      <p>No preview available for this file type.</p>
       <PreviewMetadata
         size={metadataSize}
         lastModified={metadataLastModified}
         contentType={metadataContentType}
       />
+      <p>No preview available for this file type.</p>
     </div>
   );
 };

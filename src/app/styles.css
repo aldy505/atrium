@@ -828,7 +828,6 @@ input:focus-visible {
 }
 
 .preview-meta {
-  margin-top: auto;
   border-top: 1px solid var(--table-row-border);
   padding-top: 0.7rem;
   display: grid;
