@@ -58,6 +58,7 @@ export const App = () => {
   const uploadSourceMapRef = useRef<Map<string, UploadSourceFile>>(new Map());
   const uploadAbortMapRef = useRef<Map<string, () => void>>(new Map());
   const canceledUploadTaskIdsRef = useRef<Set<string>>(new Set());
+  const uploadBatchInFlightRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -286,6 +287,11 @@ export const App = () => {
     sourceFiles: UploadSourceFile[],
     emptyFolders: string[],
   ): Promise<void> => {
+    if (uploadBatchInFlightRef.current) {
+      setGlobalError("Another upload batch is still running");
+      return;
+    }
+
     const dedupedFiles = new Map<string, UploadSourceFile>();
 
     for (const source of sourceFiles) {
@@ -319,6 +325,7 @@ export const App = () => {
       return;
     }
 
+    uploadBatchInFlightRef.current = true;
     setUploadTasks((prev) => [...prev, ...taskRecords]);
     setIsUploadingBatch(true);
     setGlobalError(null);
@@ -422,8 +429,8 @@ export const App = () => {
     } catch (error) {
       setGlobalError(error instanceof Error ? error.message : "Upload failed");
     } finally {
+      uploadBatchInFlightRef.current = false;
       setIsUploadingBatch(false);
-      uploadAbortMapRef.current.clear();
     }
   };
 
@@ -629,7 +636,10 @@ export const App = () => {
           </div>
         </header>
 
-        <UploadDropzone disabled={!selectedBucket} onSelection={handleUploadSelection} />
+        <UploadDropzone
+          disabled={!selectedBucket || isUploadingBatch}
+          onSelection={handleUploadSelection}
+        />
 
         {uploadSummary ? (
           <div className="upload-list">
@@ -664,7 +674,11 @@ export const App = () => {
                     </button>
                   ) : null}
                   {item.status === "error" || item.status === "canceled" ? (
-                    <button type="button" onClick={() => void retryUploadTask(item.id)}>
+                    <button
+                      type="button"
+                      onClick={() => void retryUploadTask(item.id)}
+                      disabled={isUploadingBatch}
+                    >
                       Retry
                     </button>
                   ) : null}
