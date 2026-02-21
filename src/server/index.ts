@@ -8,14 +8,17 @@ import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
+import fastifySchedule from "@fastify/schedule";
 import { OpenFeature, MultiProvider, FirstMatchStrategy } from "@openfeature/server-sdk";
 import { OFREPProvider } from "@openfeature/ofrep-provider";
 import { EnvVarProvider } from "@openfeature/env-var-provider";
 import { config } from "./config.js";
 import { initializeAuditLogger, shutdownAuditLogger } from "./audit/index.js";
+import { closeBucketSizeRedis, registerBucketSizeScheduler } from "./bucket-size.js";
 import { AppError, toErrorMessage } from "./errors.js";
 import { registerAuthRoutes } from "./auth.js";
 import { registerS3Routes } from "./routes.js";
+import { closeRedis } from "./session.js";
 import { captureServerError, registerObservabilityHooks, sentryLog } from "./observability.js";
 
 // Create providers
@@ -50,14 +53,18 @@ await app.register(multipart, {
     fileSize: config.MAX_UPLOAD_SIZE_MB * 1024 * 1024,
   },
 });
+await app.register(fastifySchedule);
 registerObservabilityHooks(app);
 initializeAuditLogger();
 
 registerAuthRoutes(app);
 registerS3Routes(app);
+await registerBucketSizeScheduler(app);
 
 app.addHook("onClose", async () => {
   await shutdownAuditLogger();
+  await closeBucketSizeRedis();
+  await closeRedis();
 });
 
 app.get("/api/runtime-config", async () => {

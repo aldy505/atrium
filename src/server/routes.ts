@@ -4,6 +4,13 @@ import { z } from "zod";
 import { hashAccessKeyId, hashSessionToken, recordAuditEvent } from "./audit/index.js";
 import { AppError, toErrorMessage } from "./errors.js";
 import { requireSession } from "./auth.js";
+import {
+  calculateBucketSizeWithLock,
+  getCachedBucketSize,
+  isBackgroundBucketSizeCalculationEnabled,
+  isBucketSizeResultFresh,
+  trackBucketAccess,
+} from "./bucket-size.js";
 import { config } from "./config.js";
 import { sentryCountMetric, sentryDistributionMetric } from "./observability.js";
 import {
@@ -51,6 +58,10 @@ const createFolderSchema = z.object({
   bucket: z.string().min(1),
   prefix: z.string().default(""),
   name: z.string().min(1),
+});
+
+const bucketNameParamsSchema = z.object({
+  bucketName: z.string().min(1),
 });
 
 const streamToBuffer = async (stream: Readable): Promise<Buffer> => {
@@ -271,6 +282,12 @@ export const registerS3Routes = (app: FastifyInstance): void => {
     }
 
     const { bucket, prefix, continuationToken, maxKeys } = parsed.data;
+    if (request.sessionToken) {
+      void trackBucketAccess(request.sessionToken, bucket).catch((error) => {
+        console.error("Failed to track bucket access", error);
+      });
+    }
+
     const metricAttributes = {
       bucket,
       is_root_prefix: prefix === "",
@@ -375,6 +392,97 @@ export const registerS3Routes = (app: FastifyInstance): void => {
       });
     return response;
   });
+
+  app.get(
+    "/api/s3/buckets/:bucketName/size",
+    { preHandler: requireSession },
+    async (request, reply) => {
+      if (!(await isBackgroundBucketSizeCalculationEnabled())) {
+        return reply.code(404).send({
+          error: "Feature disabled",
+        });
+      }
+
+      const parsed = bucketNameParamsSchema.safeParse(request.params);
+      if (!parsed.success) {
+        throw new AppError("Invalid bucket name", 400, true);
+      }
+
+      if (request.sessionToken) {
+        void trackBucketAccess(request.sessionToken, parsed.data.bucketName).catch((error) => {
+          console.error("Failed to track bucket access", error);
+        });
+      }
+
+      const cachedResult = await getCachedBucketSize(
+        parsed.data.bucketName,
+        request.sessionCredentials!.accessKeyId,
+      );
+
+      if (!cachedResult) {
+        return reply.code(404).send({
+          error: "Not calculated yet",
+          message: "Bucket size will be calculated in the background",
+        });
+      }
+
+      return {
+        bucket: parsed.data.bucketName,
+        totalSize: cachedResult.totalSize,
+        sizeFormatted: cachedResult.sizeFormatted,
+        objectCount: cachedResult.objectCount,
+        isApproximate: cachedResult.isApproximate,
+        isInaccessible: cachedResult.isInaccessible,
+        error: cachedResult.error,
+        calculatedAt: cachedResult.calculatedAt,
+        ageMinutes: Math.floor((Date.now() - cachedResult.calculatedAt) / 60000),
+        isStale: !isBucketSizeResultFresh(cachedResult),
+      };
+    },
+  );
+
+  app.post(
+    "/api/s3/buckets/:bucketName/size/calculate",
+    { preHandler: requireSession },
+    async (request, reply) => {
+      if (!(await isBackgroundBucketSizeCalculationEnabled())) {
+        return reply.code(404).send({
+          error: "Feature disabled",
+        });
+      }
+
+      const parsed = bucketNameParamsSchema.safeParse(request.params);
+      if (!parsed.success) {
+        throw new AppError("Invalid bucket name", 400, true);
+      }
+
+      if (request.sessionToken) {
+        void trackBucketAccess(request.sessionToken, parsed.data.bucketName).catch((error) => {
+          request.log.error(
+            { error, bucket: parsed.data.bucketName },
+            "Failed to track bucket access",
+          );
+        });
+      }
+
+      void calculateBucketSizeWithLock(
+        parsed.data.bucketName,
+        request.sessionCredentials!,
+        request.log,
+        { force: true },
+      ).catch((error) => {
+        request.log.error(
+          { error, bucket: parsed.data.bucketName },
+          "Manual size calculation failed",
+        );
+      });
+
+      return reply.code(202).send({
+        message: "Calculation started",
+        bucket: parsed.data.bucketName,
+      });
+    },
+  );
 
   app.post("/api/s3/upload", { preHandler: requireSession }, async (request) => {
     const startedAt = Date.now();

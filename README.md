@@ -104,6 +104,9 @@ You can change these in `.env`.
 | `REDIS_URL`                                    | yes        | -                | Redis connection URL                          |
 | `SESSION_TTL_SECONDS`                          | no         | `86400`          | Session TTL in seconds                        |
 | `COOKIE_NAME`                                  | no         | `atrium_session` | Session cookie name                           |
+| `BUCKET_SIZE_CALC_INTERVAL_HOURS`              | no         | `1`              | Background bucket-size job interval (hours)   |
+| `BUCKET_SIZE_MAX_DURATION_MS`                  | no         | `300000`         | Max runtime per bucket size calculation       |
+| `BUCKET_SIZE_MAX_OBJECTS`                      | no         | `1000000`        | Max objects scanned per calculation           |
 | `S3_ENDPOINT`                                  | yes        | -                | S3-compatible endpoint URL                    |
 | `S3_REGION`                                    | yes        | -                | S3 region string                              |
 | `S3_FORCE_PATH_STYLE`                          | no         | `true`           | Use path-style S3 URLs (needed by MinIO)      |
@@ -199,11 +202,20 @@ pnpm start
 - Cached list responses use TTL-based expiration (default `300s`) and can be toggled with `S3_LIST_CACHE_ENABLED`.
 - Cache invalidation runs after upload/delete operations with default `targeted` mode (prefix + parent prefixes), or `bucket` mode via `S3_LIST_CACHE_INVALIDATION_MODE`.
 - Optional diagnostics header `X-Atrium-S3-List-Cache` reports `HIT`, `MISS`, or `BYPASS` when `S3_LIST_CACHE_INCLUDE_HEADERS=true`.
+- Optional background bucket-size calculation can be enabled with OpenFeature flag `enable-background-bucket-size-calculation`.
+- Bucket-size API routes (feature-gated): `GET /api/s3/buckets/:bucketName/size` and `POST /api/s3/buckets/:bucketName/size/calculate`.
 - Frontend requests objects in pages of `200` and merges pages in memory.
 - The object table supports:
   - Manual pagination with **Load more**
   - Optional **Auto-load on scroll** (IntersectionObserver)
 - For stress testing, this repository has been validated with a generated dataset of `5000` objects in MinIO.
+
+### Bucket Size Calculation Cost Notes
+
+- Bucket-size calculation uses paged `ListObjectsV2` calls (up to `1000` objects per request).
+- AWS S3 pricing is roughly `$0.005` per `1,000` LIST requests.
+- A bucket with `1,000,000` objects needs around `1,000` list calls (~`$0.005`) for one full calculation.
+- Running this hourly across many large buckets can add noticeable cost; tune interval and limits accordingly.
 
 ## Sentry Metrics
 
