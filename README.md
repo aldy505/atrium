@@ -74,6 +74,7 @@ services:
     ports:
       - "9000:9000"
 ```
+
 ### Pre-built Artifacts
 
 If you prefer to run it directly using Node, you can download the pre-built

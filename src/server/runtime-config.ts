@@ -11,23 +11,13 @@ export function registerRuntimeConfigRoute(app: FastifyInstance): void {
     return {
       sentry: {
         dsn: sentryDsn,
-        environment:
-          process.env.FRONTEND_SENTRY_ENVIRONMENT ||
-          config.NODE_ENV,
+        environment: process.env.FRONTEND_SENTRY_ENVIRONMENT || config.NODE_ENV,
         release: process.env.FRONTEND_SENTRY_RELEASE,
-        tracesSampleRate:
-          process.env.FRONTEND_SENTRY_TRACES_SAMPLE_RATE ||
-          "0.1",
-        enableLogs:
-          (process.env.FRONTEND_SENTRY_ENABLE_LOGS || "true") !== "false",
-        enableMetrics:
-          (process.env.FRONTEND_SENTRY_ENABLE_METRICS || "true") !== "false",
-        replaysSessionSampleRate:
-          process.env.FRONTEND_SENTRY_REPLAYS_SESSION_SAMPLE_RATE ||
-          "0.1",
-        replaysOnErrorSampleRate:
-          process.env.FRONTEND_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE ||
-          "1.0",
+        tracesSampleRate: process.env.FRONTEND_SENTRY_TRACES_SAMPLE_RATE || "0.1",
+        enableLogs: (process.env.FRONTEND_SENTRY_ENABLE_LOGS || "true") !== "false",
+        enableMetrics: (process.env.FRONTEND_SENTRY_ENABLE_METRICS || "true") !== "false",
+        replaysSessionSampleRate: process.env.FRONTEND_SENTRY_REPLAYS_SESSION_SAMPLE_RATE || "0.1",
+        replaysOnErrorSampleRate: process.env.FRONTEND_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE || "1.0",
       },
     };
   });
