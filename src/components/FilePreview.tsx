@@ -132,7 +132,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
   const fileEntry = isFile ? file : null;
 
   const metadataQuery = useQuery({
-    queryKey: ["object-metadata", bucket, file?.key],
+    queryKey: ["object-metadata", bucket, fileEntry?.key],
     queryFn: () => getObjectMetadata(bucket, fileEntry!.key),
     enabled: Boolean(fileEntry && bucket),
   });
