@@ -1,6 +1,6 @@
 # Atrium Current State (Handoff)
 
-Last updated: 2026-02-17
+Last updated: 2026-02-22
 
 ## Current Status
 
@@ -10,6 +10,9 @@ Last updated: 2026-02-17
 - UI supports both manual pagination (**Load more**) and optional auto-load on scroll.
 - UI supports creating folders with validation and navigation on success.
 - Frontend Sentry is initialized at runtime via `/api/runtime-config` (with Vite env fallback).
+- Runtime feature flags are exposed via `/api/runtime-config`.
+- `ENABLE_S3_URI_COPY` now gates a sidebar `Copy S3 URI` action (disabled by default).
+- Sidebar detail view now supports both file and folder selections.
 - Backend S3/auth metric instrumentation is in place.
 - Audit logging is in place with filesystem CSV or Loki sinks.
 - TypeScript typecheck and production build are passing.
@@ -21,6 +24,7 @@ Last updated: 2026-02-17
 - Session auth uses secure cookie token + Redis credential mapping.
 - Backend Sentry init uses ESM preload module (`--import`) before server startup.
 - Frontend Sentry config is runtime-resolved from backend (`FRONTEND_SENTRY_*` preferred).
+- Optional frontend feature flags are runtime-resolved from backend/OpenFeature.
 - Metrics use direct `Sentry.metrics.*` calls.
 - S3 list API is paginated (`maxKeys`, continuation tokens), default page size `200`.
 - Audit logs never store plaintext credentials; access key IDs are SHA-256 hashed.

@@ -5,7 +5,9 @@ type ObjectTableProps = {
   folders: FolderEntry[];
   files: FileEntry[];
   filter: string;
+  enableS3UriCopy?: boolean;
   onOpenFolder: (key: string) => void;
+  onSelectFolder: (folder: FolderEntry) => void;
   onSelectFile: (file: FileEntry) => void;
   onDeleteFolder: (key: string) => void;
   onDeleteFile: (key: string) => void;
@@ -70,7 +72,9 @@ export const ObjectTable = ({
   folders,
   files,
   filter,
+  enableS3UriCopy = false,
   onOpenFolder,
+  onSelectFolder,
   onSelectFile,
   onDeleteFolder,
   onDeleteFile,
@@ -113,9 +117,20 @@ export const ObjectTable = ({
               <td>-</td>
               <td>-</td>
               <td>
-                <button type="button" className="danger" onClick={() => onDeleteFolder(folder.key)}>
-                  Delete
-                </button>
+                <div className="table-actions">
+                  {enableS3UriCopy ? (
+                    <button type="button" onClick={() => onSelectFolder(folder)}>
+                      Details
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="danger"
+                    onClick={() => onDeleteFolder(folder.key)}
+                  >
+                    Delete
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

@@ -7,7 +7,8 @@ import markdown from "highlight.js/lib/languages/markdown";
 import plaintext from "highlight.js/lib/languages/plaintext";
 import csv from "highlight.js/lib/languages/plaintext";
 import { getDownloadUrl, getObjectMetadata, getTextPreview } from "../app/lib/api";
-import type { FileEntry } from "../app/lib/types";
+import { buildS3Uri, copyTextToClipboard } from "../app/lib/s3-uri";
+import type { FileEntry, FolderEntry } from "../app/lib/types";
 import { getExtension, isImageFile, isTextFile } from "./FileIcon";
 
 hljs.registerLanguage("json", json);
@@ -18,7 +19,8 @@ hljs.registerLanguage("csv", csv);
 
 type FilePreviewProps = {
   bucket: string;
-  file: FileEntry | null;
+  file: FileEntry | FolderEntry | null;
+  enableS3UriCopy?: boolean;
 };
 
 const getLanguage = (filename: string): string => {
@@ -121,22 +123,25 @@ const PreviewMetadata = ({ size, lastModified, contentType }: PreviewMetadataPro
   );
 };
 
-export const FilePreview = ({ bucket, file }: FilePreviewProps) => {
+export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePreviewProps) => {
   const [textContent, setTextContent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
+  const isFile = file?.type === "file";
+  const fileEntry = isFile ? file : null;
 
   const metadataQuery = useQuery({
     queryKey: ["object-metadata", bucket, file?.key],
-    queryFn: () => getObjectMetadata(bucket, file!.key),
-    enabled: Boolean(file && bucket),
+    queryFn: () => getObjectMetadata(bucket, fileEntry!.key),
+    enabled: Boolean(fileEntry && bucket),
   });
 
   useEffect(() => {
     let isMounted = true;
 
     const run = async () => {
-      if (!file || !isTextFile(file.name)) {
+      if (!fileEntry || !isTextFile(fileEntry.name)) {
         setTextContent("");
         setError(null);
         return;
@@ -146,7 +151,7 @@ export const FilePreview = ({ bucket, file }: FilePreviewProps) => {
       setError(null);
 
       try {
-        const result = await getTextPreview(bucket, file.key);
+        const result = await getTextPreview(bucket, fileEntry.key);
         if (isMounted) {
           setTextContent(result);
         }
@@ -166,26 +171,73 @@ export const FilePreview = ({ bucket, file }: FilePreviewProps) => {
     return () => {
       isMounted = false;
     };
-  }, [bucket, file]);
+  }, [bucket, fileEntry]);
+
+  useEffect(() => {
+    if (copyStatus !== "copied") {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setCopyStatus("idle");
+    }, 2000);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [copyStatus]);
+
+  useEffect(() => {
+    setCopyStatus("idle");
+  }, [file?.key]);
 
   const highlighted = useMemo(() => {
-    if (!file || !textContent) {
+    if (!fileEntry || !textContent) {
       return "";
     }
 
-    const language = getLanguage(file.name);
+    const language = getLanguage(fileEntry.name);
     return hljs.highlight(textContent, { language }).value;
-  }, [file, textContent]);
+  }, [fileEntry, textContent]);
 
   const metadata = metadataQuery.data;
-  const metadataSize = metadata?.size ?? file?.size;
-  const metadataLastModified = metadata?.lastModified ?? file?.lastModified;
-  const metadataContentType = metadata?.contentType ?? file?.contentType;
+  const metadataSize = metadata?.size ?? fileEntry?.size;
+  const metadataLastModified = metadata?.lastModified ?? fileEntry?.lastModified;
+  const metadataContentType = metadata?.contentType ?? fileEntry?.contentType;
 
   if (!file) {
     return (
       <div className="preview-empty center-feedback">
-        <p>Select a file to preview</p>
+        <p>
+          {enableS3UriCopy ? "Select a file or folder to view details" : "Select a file to preview"}
+        </p>
+      </div>
+    );
+  }
+
+  const s3Uri = buildS3Uri(bucket, file);
+  const canCopyS3Uri = enableS3UriCopy && Boolean(bucket);
+  const handleCopyS3Uri = async () => {
+    try {
+      await copyTextToClipboard(s3Uri);
+      setCopyStatus("copied");
+    } catch {
+      // Clipboard copy failed; keep default button label without changing status.
+    }
+  };
+
+  const copyButton = canCopyS3Uri ? (
+    <button type="button" onClick={() => void handleCopyS3Uri()}>
+      {copyStatus === "copied" ? "Copied!" : "Copy S3 URI"}
+    </button>
+  ) : null;
+
+  if (file.type === "folder") {
+    return (
+      <div className="preview-panel">
+        <h3>{file.name}</h3>
+        {copyButton}
+        <p>S3 URI: {s3Uri}</p>
       </div>
     );
   }
@@ -194,6 +246,7 @@ export const FilePreview = ({ bucket, file }: FilePreviewProps) => {
     return (
       <div className="preview-panel">
         <h3>{file.name}</h3>
+        {copyButton}
         <PreviewMetadata
           size={metadataSize}
           lastModified={metadataLastModified}
@@ -212,6 +265,7 @@ export const FilePreview = ({ bucket, file }: FilePreviewProps) => {
     return (
       <div className="preview-panel">
         <h3>{file.name}</h3>
+        {copyButton}
         <PreviewMetadata
           size={metadataSize}
           lastModified={metadataLastModified}
@@ -240,6 +294,7 @@ export const FilePreview = ({ bucket, file }: FilePreviewProps) => {
   return (
     <div className="preview-panel">
       <h3>{file.name}</h3>
+      {copyButton}
       <PreviewMetadata
         size={metadataSize}
         lastModified={metadataLastModified}

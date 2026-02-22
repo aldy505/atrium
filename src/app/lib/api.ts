@@ -1,4 +1,4 @@
-import type { ListObjectsResponse, ObjectMetadataResponse } from "./types";
+import type { ListObjectsResponse, ObjectMetadataResponse, RuntimeConfigResponse } from "./types";
 
 export type UploadRequest = {
   promise: Promise<void>;
@@ -205,4 +205,12 @@ export const getObjectMetadata = async (
   });
 
   return parseResponse<ObjectMetadataResponse>(response);
+};
+
+export const getRuntimeConfig = async (): Promise<RuntimeConfigResponse> => {
+  const response = await fetch("/api/runtime-config", {
+    credentials: "same-origin",
+  });
+
+  return parseResponse<RuntimeConfigResponse>(response);
 };

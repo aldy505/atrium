@@ -184,3 +184,15 @@ Last updated: 2026-02-17
 - Added `/api/s3/folder` route with folder-name normalization and cache invalidation.
 - Implemented S3 folder creation with trailing-slash objects and a `.folderPlaceholder` fallback.
 - Added frontend API helper and modal styling updates.
+
+## 16) 2026-02-22 Follow-up: Copy S3 URI Feature Flag (Issue #19)
+
+- Added `ENABLE_S3_URI_COPY` feature flag exposure via `GET /api/runtime-config` using OpenFeature.
+- Added frontend runtime-config API helper and consumed feature flags in `App`.
+- Implemented `Copy S3 URI` behavior in `FilePreview`:
+  - Uses `navigator.clipboard.writeText()` when available.
+  - Falls back to `document.execCommand("copy")`.
+  - Shows temporary `Copied!` confirmation.
+- Added dedicated folder `Details` action in object table so folder metadata view can drive copy behavior.
+- Added URI utilities in `src/app/lib/s3-uri.ts` and tests in `tests/s3-uri.test.ts`.
+- Updated `.env.example` and `README.md` to document `ENABLE_S3_URI_COPY`.
