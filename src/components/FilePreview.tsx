@@ -127,7 +127,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
   const [textContent, setTextContent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
   const isFile = file?.type === "file";
   const fileEntry = isFile ? file : null;
 
@@ -222,7 +222,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
       await copyTextToClipboard(s3Uri);
       setCopyStatus("copied");
     } catch {
-      setCopyStatus("error");
+      // Clipboard copy failed; keep default button label without changing status.
     }
   };
 

@@ -69,10 +69,12 @@ app.addHook("onClose", async () => {
 
 app.get("/api/runtime-config", async () => {
   const sentryDsn = process.env.FRONTEND_SENTRY_DSN || process.env.VITE_SENTRY_DSN;
-  const enableS3UriCopy = await OpenFeature.getClient().getBooleanValue(
-    "ENABLE_S3_URI_COPY",
-    false,
-  );
+  let enableS3UriCopy = false;
+  try {
+    enableS3UriCopy = await OpenFeature.getClient().getBooleanValue("ENABLE_S3_URI_COPY", false);
+  } catch (error) {
+    app.log.debug({ err: error }, "Failed to resolve ENABLE_S3_URI_COPY; defaulting to false");
+  }
 
   return {
     sentry: {
