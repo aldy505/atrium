@@ -113,39 +113,39 @@ docker compose up --build
 
 ## Environment Variables
 
-| Variable                                       | Required   | Default          | Description                                   |
-| ---------------------------------------------- | ---------- | ---------------- | --------------------------------------------- |
-| `NODE_ENV`                                     | no         | `development`    | Runtime environment                           |
-| `PORT`                                         | no         | `3000`           | API/web app port                              |
-| `REDIS_URL`                                    | yes        | -                | Redis connection URL                          |
-| `SESSION_TTL_SECONDS`                          | no         | `86400`          | Session TTL in seconds                        |
-| `COOKIE_NAME`                                  | no         | `atrium_session` | Session cookie name                           |
-| `BUCKET_SIZE_CALC_INTERVAL_HOURS`              | no         | `1`              | Background bucket-size job interval (hours)   |
-| `BUCKET_SIZE_MAX_DURATION_MS`                  | no         | `300000`         | Max runtime per bucket size calculation       |
-| `BUCKET_SIZE_MAX_OBJECTS`                      | no         | `1000000`        | Max objects scanned per calculation           |
-| `ENABLE_S3_URI_COPY`                           | no         | `false`          | Show "Copy S3 URI" action in object sidebar |
-| `S3_ENDPOINT`                                  | yes        | -                | S3-compatible endpoint URL                    |
-| `S3_REGION`                                    | yes        | -                | S3 region string                              |
-| `S3_FORCE_PATH_STYLE`                          | no         | `true`           | Use path-style S3 URLs (needed by MinIO)      |
-| `MAX_UPLOAD_SIZE_MB`                           | no         | `100`            | Per-file upload size limit                    |
-| `AUDIT_LOG_SINK`                               | no         | `filesystem`     | Audit log sink (`filesystem`, `loki`, `none`) |
-| `AUDIT_LOG_DIR`                                | no         | `audit-logs`     | Filesystem audit log directory                |
-| `AUDIT_LOG_RETENTION_DAYS`                     | no         | `30`             | Filesystem audit log retention (days)         |
-| `AUDIT_LOG_LOKI_URL`                           | no         | -                | Loki push endpoint (required for `loki`)      |
-| `SENTRY_DSN`                                   | no         | -                | Backend Sentry DSN                            |
-| `SENTRY_ENVIRONMENT`                           | no         | `development`    | Backend Sentry environment                    |
-| `SENTRY_RELEASE`                               | no         | `atrium@0.1.0`   | Backend release identifier                    |
-| `SENTRY_TRACES_SAMPLE_RATE`                    | no         | `0.1`            | Backend tracing sample rate                   |
-| `SENTRY_ENABLE_LOGS`                           | no         | `true`           | Enable backend Sentry logs                    |
-| `SENTRY_ENABLE_METRICS`                        | no         | `true`           | Enable backend Sentry metrics                 |
-| `FRONTEND_SENTRY_DSN`                          | no         | -                | Frontend Sentry DSN (runtime via API)         |
-| `FRONTEND_SENTRY_ENVIRONMENT`                  | no         | `NODE_ENV`       | Frontend Sentry environment (runtime)         |
-| `FRONTEND_SENTRY_RELEASE`                      | no         | -                | Frontend release identifier (runtime)         |
-| `FRONTEND_SENTRY_TRACES_SAMPLE_RATE`           | no         | `0.1`            | Frontend tracing sample rate (runtime)        |
-| `FRONTEND_SENTRY_ENABLE_LOGS`                  | no         | `true`           | Enable frontend Sentry logs (runtime)         |
-| `FRONTEND_SENTRY_ENABLE_METRICS`               | no         | `true`           | Enable frontend Sentry metrics (runtime)      |
-| `FRONTEND_SENTRY_REPLAYS_SESSION_SAMPLE_RATE`  | no         | `0.1`            | Frontend replay session sample (runtime)      |
-| `FRONTEND_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE` | no         | `1.0`            | Frontend replay-on-error sample (runtime)     |
+| Variable                                       | Required | Default          | Description                                   |
+| ---------------------------------------------- | -------- | ---------------- | --------------------------------------------- |
+| `NODE_ENV`                                     | no       | `development`    | Runtime environment                           |
+| `PORT`                                         | no       | `3000`           | API/web app port                              |
+| `REDIS_URL`                                    | yes      | -                | Redis connection URL                          |
+| `SESSION_TTL_SECONDS`                          | no       | `86400`          | Session TTL in seconds                        |
+| `COOKIE_NAME`                                  | no       | `atrium_session` | Session cookie name                           |
+| `BUCKET_SIZE_CALC_INTERVAL_HOURS`              | no       | `1`              | Background bucket-size job interval (hours)   |
+| `BUCKET_SIZE_MAX_DURATION_MS`                  | no       | `300000`         | Max runtime per bucket size calculation       |
+| `BUCKET_SIZE_MAX_OBJECTS`                      | no       | `1000000`        | Max objects scanned per calculation           |
+| `ENABLE_S3_URI_COPY`                           | no       | `false`          | Show "Copy S3 URI" action in object sidebar   |
+| `S3_ENDPOINT`                                  | yes      | -                | S3-compatible endpoint URL                    |
+| `S3_REGION`                                    | yes      | -                | S3 region string                              |
+| `S3_FORCE_PATH_STYLE`                          | no       | `true`           | Use path-style S3 URLs (needed by MinIO)      |
+| `MAX_UPLOAD_SIZE_MB`                           | no       | `100`            | Per-file upload size limit                    |
+| `AUDIT_LOG_SINK`                               | no       | `filesystem`     | Audit log sink (`filesystem`, `loki`, `none`) |
+| `AUDIT_LOG_DIR`                                | no       | `audit-logs`     | Filesystem audit log directory                |
+| `AUDIT_LOG_RETENTION_DAYS`                     | no       | `30`             | Filesystem audit log retention (days)         |
+| `AUDIT_LOG_LOKI_URL`                           | no       | -                | Loki push endpoint (required for `loki`)      |
+| `SENTRY_DSN`                                   | no       | -                | Backend Sentry DSN                            |
+| `SENTRY_ENVIRONMENT`                           | no       | `development`    | Backend Sentry environment                    |
+| `SENTRY_RELEASE`                               | no       | `atrium@0.1.0`   | Backend release identifier                    |
+| `SENTRY_TRACES_SAMPLE_RATE`                    | no       | `0.1`            | Backend tracing sample rate                   |
+| `SENTRY_ENABLE_LOGS`                           | no       | `true`           | Enable backend Sentry logs                    |
+| `SENTRY_ENABLE_METRICS`                        | no       | `true`           | Enable backend Sentry metrics                 |
+| `FRONTEND_SENTRY_DSN`                          | no       | -                | Frontend Sentry DSN (runtime via API)         |
+| `FRONTEND_SENTRY_ENVIRONMENT`                  | no       | `NODE_ENV`       | Frontend Sentry environment (runtime)         |
+| `FRONTEND_SENTRY_RELEASE`                      | no       | -                | Frontend release identifier (runtime)         |
+| `FRONTEND_SENTRY_TRACES_SAMPLE_RATE`           | no       | `0.1`            | Frontend tracing sample rate (runtime)        |
+| `FRONTEND_SENTRY_ENABLE_LOGS`                  | no       | `true`           | Enable frontend Sentry logs (runtime)         |
+| `FRONTEND_SENTRY_ENABLE_METRICS`               | no       | `true`           | Enable frontend Sentry metrics (runtime)      |
+| `FRONTEND_SENTRY_REPLAYS_SESSION_SAMPLE_RATE`  | no       | `0.1`            | Frontend replay session sample (runtime)      |
+| `FRONTEND_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE` | no       | `1.0`            | Frontend replay-on-error sample (runtime)     |
 | Variable                                       | Required | Default          | Description                                   |
 | ---------------------------------------------- | -------- | ---------------- | --------------------------------------------- |
 | `NODE_ENV`                                     | no       | `development`    | Runtime environment                           |
@@ -178,7 +178,6 @@ docker compose up --build
 | `FRONTEND_SENTRY_ENABLE_METRICS`               | no       | `true`           | Enable frontend Sentry metrics (runtime)      |
 | `FRONTEND_SENTRY_REPLAYS_SESSION_SAMPLE_RATE`  | no       | `0.1`            | Frontend replay session sample (runtime)      |
 | `FRONTEND_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE` | no       | `1.0`            | Frontend replay-on-error sample (runtime)     |
-
 
 ## Configure for Different Providers
 

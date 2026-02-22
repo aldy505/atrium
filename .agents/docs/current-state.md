@@ -9,7 +9,7 @@ Last updated: 2026-02-22
 - Redis-backed server-side S3 list cache is implemented for `/api/s3/objects`.
 - UI supports both manual pagination (**Load more**) and optional auto-load on scroll.
 - UI supports creating folders with validation and navigation on success.
-<<<<<<< HEAD
+  <<<<<<< HEAD
 - Frontend Sentry is initialized at runtime via `/api/runtime-config`; settings come from `FRONTEND_SENTRY_*` environment variables.
 - Runtime feature flags are exposed via `/api/runtime-config`.
 - `ENABLE_S3_URI_COPY` now gates a sidebar **Copy S3 URI** action (disabled by default).
