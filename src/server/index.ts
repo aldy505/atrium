@@ -20,6 +20,7 @@ import { registerAuthRoutes } from "./auth.js";
 import { registerS3Routes } from "./routes.js";
 import { closeRedis } from "./session.js";
 import { captureServerError, registerObservabilityHooks, sentryLog } from "./observability.js";
+import { registerRuntimeConfigRoute } from "./runtime-config.js";
 
 // Create providers
 const primaryProvider = new OFREPProvider({
@@ -61,39 +62,13 @@ registerAuthRoutes(app);
 registerS3Routes(app);
 await registerBucketSizeScheduler(app);
 
+// mount shared route helper
+registerRuntimeConfigRoute(app);
+
 app.addHook("onClose", async () => {
   await shutdownAuditLogger();
   await closeBucketSizeRedis();
   await closeRedis();
-});
-
-app.get("/api/runtime-config", async () => {
-  // runtime values are driven by FRONTEND_SENTRY_* variables only. build-time
-  // VITE_* keys are no longer consulted to keep the configuration surface
-  // minimal and reduce confusion.
-  const sentryDsn = process.env.FRONTEND_SENTRY_DSN;
-  let enableS3UriCopy = false;
-  try {
-    enableS3UriCopy = await OpenFeature.getClient().getBooleanValue("ENABLE_S3_URI_COPY", false);
-  } catch (error) {
-    app.log.debug({ err: error }, "Failed to resolve ENABLE_S3_URI_COPY; defaulting to false");
-  }
-
-  return {
-    sentry: {
-      dsn: sentryDsn,
-      environment: process.env.FRONTEND_SENTRY_ENVIRONMENT || config.NODE_ENV,
-      release: process.env.FRONTEND_SENTRY_RELEASE,
-      tracesSampleRate: process.env.FRONTEND_SENTRY_TRACES_SAMPLE_RATE || "0.1",
-      enableLogs: (process.env.FRONTEND_SENTRY_ENABLE_LOGS || "true") !== "false",
-      enableMetrics: (process.env.FRONTEND_SENTRY_ENABLE_METRICS || "true") !== "false",
-      replaysSessionSampleRate: process.env.FRONTEND_SENTRY_REPLAYS_SESSION_SAMPLE_RATE || "0.1",
-      replaysOnErrorSampleRate: process.env.FRONTEND_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE || "1.0",
-    },
-    features: {
-      enableS3UriCopy,
-    },
-  };
 });
 
 if (config.NODE_ENV === "production" || existsSync(clientIndexPath)) {

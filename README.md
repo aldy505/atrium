@@ -213,7 +213,7 @@ pnpm dev
 - Vite dev server runs on `5173`
 - API server runs on `3000`
 - Vite proxies `/api` to backend
-- MinIO test credentials is `minioadmin` for access key and `minioadmin` for secret key.
+- MinIO test credentials are `minioadmin` for access key and `minioadmin` for secret key.
 
 ## Optional Features
 
