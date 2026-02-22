@@ -1,5 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { config } from "./config.js";
+import { OpenFeature } from "@openfeature/server-sdk";
+import type { RuntimeConfigResponse } from "./../app/lib/types.js";
 
 export function registerRuntimeConfigRoute(app: FastifyInstance): void {
   app.get("/api/runtime-config", async () => {
@@ -8,7 +10,14 @@ export function registerRuntimeConfigRoute(app: FastifyInstance): void {
     // minimal and reduce confusion.
     const sentryDsn = process.env.FRONTEND_SENTRY_DSN;
 
-    return {
+    let enableS3UriCopy = false;
+    try {
+      enableS3UriCopy = await OpenFeature.getClient().getBooleanValue("ENABLE_S3_URI_COPY", false);
+    } catch (err) {
+      app.log.debug({ err }, "Failed to resolve ENABLE_S3_URI_COPY; defaulting to false");
+    }
+
+    const response: RuntimeConfigResponse = {
       sentry: {
         dsn: sentryDsn,
         environment: process.env.FRONTEND_SENTRY_ENVIRONMENT || config.NODE_ENV,
@@ -19,6 +28,11 @@ export function registerRuntimeConfigRoute(app: FastifyInstance): void {
         replaysSessionSampleRate: process.env.FRONTEND_SENTRY_REPLAYS_SESSION_SAMPLE_RATE || "0.1",
         replaysOnErrorSampleRate: process.env.FRONTEND_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE || "1.0",
       },
+      features: {
+        enableS3UriCopy,
+      },
     };
+
+    return response;
   });
 }

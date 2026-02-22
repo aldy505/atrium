@@ -73,6 +73,7 @@ services:
       MINIO_ROOT_PASSWORD: "minioadmin"
     ports:
       - "9000:9000"
+      - "9001:9001"
 ```
 
 ### Pre-built Artifacts

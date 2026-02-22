@@ -58,20 +58,5 @@ export type UploadTask = {
   error?: string;
 };
 
-export type RuntimeSentryConfig = {
-  dsn?: string;
-  environment?: string;
-  release?: string;
-  tracesSampleRate?: string | number;
-  enableLogs?: boolean;
-  enableMetrics?: boolean;
-  replaysSessionSampleRate?: string | number;
-  replaysOnErrorSampleRate?: string | number;
-};
+export type { RuntimeSentryConfig, RuntimeConfigResponse } from "../../shared/types";
 
-export type RuntimeConfigResponse = {
-  sentry?: RuntimeSentryConfig;
-  features?: {
-    enableS3UriCopy?: boolean;
-  };
-};
