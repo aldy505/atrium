@@ -57,5 +57,4 @@ describe("/api/runtime-config", () => {
       await app.close();
     }
   });
-
 });

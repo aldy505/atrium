@@ -59,4 +59,3 @@ export type UploadTask = {
 };
 
 export type { RuntimeSentryConfig, RuntimeConfigResponse } from "../../shared/types";
-
