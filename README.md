@@ -47,7 +47,10 @@ in one repository.
 
 ### Docker Compose
 
-`edge` tag refers to the default branch.
+`edge` tag refers to the default branch. The following example is intended for a
+local development setup where Redis and MinIO run as sibling containers; service
+hostnames are used rather than `localhost` which would point to the container
+itself.
 
 ```yaml
 services:
@@ -56,12 +59,21 @@ services:
     ports:
       - "3000:3000"
     environment:
-      REDIS_URL: "redis://localhost:6379"
-      S3_ENDPOINT: "http://localhost:9000"
+      REDIS_URL: "redis://redis:6379"
+      S3_ENDPOINT: "http://minio:9000"
       S3_REGION: "us-east-1"
       S3_FORCE_PATH_STYLE: true
+  redis:
+    image: redis:7-alpine
+  minio:
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: "minioadmin"
+      MINIO_ROOT_PASSWORD: "minioadmin"
+    ports:
+      - "9000:9000"
 ```
-
 ### Pre-built Artifacts
 
 If you prefer to run it directly using Node, you can download the pre-built
