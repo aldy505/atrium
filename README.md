@@ -43,7 +43,48 @@ in one repository.
 - Session store: Redis (`token -> credentials`, TTL)
 - Deployment: Docker Compose (`atrium-app`, `redis`, `minio`)
 
-## Quick Start (Local with Included MinIO)
+## Quick Start
+
+### Docker Compose
+
+`edge` tag refers to the default branch. The following example is intended for a
+local development setup where Redis and MinIO run as sibling containers; service
+hostnames are used rather than `localhost` which would point to the container
+itself.
+
+```yaml
+services:
+  atrium:
+    image: "ghcr.io/aldy505/atrium:edge"
+    ports:
+      - "3000:3000"
+    environment:
+      REDIS_URL: "redis://redis:6379"
+      S3_ENDPOINT: "http://minio:9000"
+      S3_REGION: "us-east-1"
+      S3_FORCE_PATH_STYLE: true
+  redis:
+    image: redis:7-alpine
+  minio:
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: "minioadmin"
+      MINIO_ROOT_PASSWORD: "minioadmin"
+    ports:
+      - "9000:9000"
+```
+
+### Pre-built Artifacts
+
+If you prefer to run it directly using Node, you can download the pre-built
+artifacts from the [latest GitHub Actions run](https://github.com/aldy505/atrium/actions/workflows/ci.yaml).
+
+1. Download the artifacts that correspond with your environment (Linux amd64, Linux arm64, or Windows).
+2. Extract the archive (`unzip atrium-{platform}-{sha}.zip`)
+3. Run it using Node.js (`node --import ./dist/server/sentry.server.js ./dist/server/index.js`)
+
+### From source
 
 1. Copy env template:
 
@@ -54,7 +95,7 @@ cp .env.example .env
 2. Start all services:
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 3. Open Atrium:
@@ -70,74 +111,73 @@ docker-compose up --build
 
 5. Create a bucket in MinIO Console first, then browse/upload/download/delete through Atrium.
 
-## Installation
-
-Docker is the most convenient way:
-
-```bash
-docker pull ghcr.io/aldy505/atrium:edge
-# edge means from `master` branch
-```
-
-You can also download from download the pre-build tarball from [GitHub Actions page](https://github.com/aldy505/atrium/actions/workflows/ci.yaml?query=branch%3Amaster).
-
-```bash
-# atrium.tar.gz
-tar -zxf atrium.tar.gz
-cd atrium
-npm run start
-```
-
-## MinIO Test Credentials
-
-- `MINIO_ROOT_USER=minioadmin`
-- `MINIO_ROOT_PASSWORD=minioadmin`
-
-You can change these in `.env`.
-
 ## Environment Variables
 
-| Variable                                       | Required   | Default          | Description                                   |
-| ---------------------------------------------- | ---------- | ---------------- | --------------------------------------------- |
-| `NODE_ENV`                                     | no         | `development`    | Runtime environment                           |
-| `PORT`                                         | no         | `3000`           | API/web app port                              |
-| `REDIS_URL`                                    | yes        | -                | Redis connection URL                          |
-| `SESSION_TTL_SECONDS`                          | no         | `86400`          | Session TTL in seconds                        |
-| `COOKIE_NAME`                                  | no         | `atrium_session` | Session cookie name                           |
-| `BUCKET_SIZE_CALC_INTERVAL_HOURS`              | no         | `1`              | Background bucket-size job interval (hours)   |
-| `BUCKET_SIZE_MAX_DURATION_MS`                  | no         | `300000`         | Max runtime per bucket size calculation       |
-| `BUCKET_SIZE_MAX_OBJECTS`                      | no         | `1000000`        | Max objects scanned per calculation           |
-| `ENABLE_S3_URI_COPY`                           | no         | `false`          | Show "Copy S3 URI" action in object sidebar   |
-| `S3_ENDPOINT`                                  | yes        | -                | S3-compatible endpoint URL                    |
-| `S3_REGION`                                    | yes        | -                | S3 region string                              |
-| `S3_FORCE_PATH_STYLE`                          | no         | `true`           | Use path-style S3 URLs (needed by MinIO)      |
-| `MAX_UPLOAD_SIZE_MB`                           | no         | `100`            | Per-file upload size limit                    |
-| `AUDIT_LOG_SINK`                               | no         | `filesystem`     | Audit log sink (`filesystem`, `loki`, `none`) |
-| `AUDIT_LOG_DIR`                                | no         | `audit-logs`     | Filesystem audit log directory                |
-| `AUDIT_LOG_RETENTION_DAYS`                     | no         | `30`             | Filesystem audit log retention (days)         |
-| `AUDIT_LOG_LOKI_URL`                           | no         | -                | Loki push endpoint (required for `loki`)      |
-| `SENTRY_DSN`                                   | no         | -                | Backend Sentry DSN                            |
-| `SENTRY_ENVIRONMENT`                           | no         | `development`    | Backend Sentry environment                    |
-| `SENTRY_RELEASE`                               | no         | `atrium@0.1.0`   | Backend release identifier                    |
-| `SENTRY_TRACES_SAMPLE_RATE`                    | no         | `0.1`            | Backend tracing sample rate                   |
-| `SENTRY_ENABLE_LOGS`                           | no         | `true`           | Enable backend Sentry logs                    |
-| `SENTRY_ENABLE_METRICS`                        | no         | `true`           | Enable backend Sentry metrics                 |
-| `FRONTEND_SENTRY_DSN`                          | no         | -                | Frontend Sentry DSN (runtime via API)         |
-| `FRONTEND_SENTRY_ENVIRONMENT`                  | no         | `NODE_ENV`       | Frontend Sentry environment (runtime)         |
-| `FRONTEND_SENTRY_RELEASE`                      | no         | -                | Frontend release identifier (runtime)         |
-| `FRONTEND_SENTRY_TRACES_SAMPLE_RATE`           | no         | `0.1`            | Frontend tracing sample rate (runtime)        |
-| `FRONTEND_SENTRY_ENABLE_LOGS`                  | no         | `true`           | Enable frontend Sentry logs (runtime)         |
-| `FRONTEND_SENTRY_ENABLE_METRICS`               | no         | `true`           | Enable frontend Sentry metrics (runtime)      |
-| `FRONTEND_SENTRY_REPLAYS_SESSION_SAMPLE_RATE`  | no         | `0.1`            | Frontend replay session sample (runtime)      |
-| `FRONTEND_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE` | no         | `1.0`            | Frontend replay-on-error sample (runtime)     |
-| `VITE_SENTRY_DSN`                              | no         | -                | Frontend Sentry DSN                           |
-| `VITE_SENTRY_ENVIRONMENT`                      | no         | `development`    | Frontend Sentry environment                   |
-| `VITE_SENTRY_RELEASE`                          | no         | `atrium@0.1.0`   | Frontend release identifier                   |
-| `VITE_SENTRY_TRACES_SAMPLE_RATE`               | no         | `0.1`            | Frontend tracing sample rate                  |
-| `VITE_SENTRY_ENABLE_LOGS`                      | no         | `true`           | Enable frontend Sentry logs                   |
-| `VITE_SENTRY_ENABLE_METRICS`                   | no         | `true`           | Enable frontend Sentry metrics                |
-| `MINIO_ROOT_USER`                              | local only | `minioadmin`     | Local MinIO root access key                   |
-| `MINIO_ROOT_PASSWORD`                          | local only | `minioadmin`     | Local MinIO root secret                       |
+| Variable                                       | Required | Default          | Description                                   |
+| ---------------------------------------------- | -------- | ---------------- | --------------------------------------------- |
+| `NODE_ENV`                                     | no       | `development`    | Runtime environment                           |
+| `PORT`                                         | no       | `3000`           | API/web app port                              |
+| `REDIS_URL`                                    | yes      | -                | Redis connection URL                          |
+| `SESSION_TTL_SECONDS`                          | no       | `86400`          | Session TTL in seconds                        |
+| `COOKIE_NAME`                                  | no       | `atrium_session` | Session cookie name                           |
+| `BUCKET_SIZE_CALC_INTERVAL_HOURS`              | no       | `1`              | Background bucket-size job interval (hours)   |
+| `BUCKET_SIZE_MAX_DURATION_MS`                  | no       | `300000`         | Max runtime per bucket size calculation       |
+| `BUCKET_SIZE_MAX_OBJECTS`                      | no       | `1000000`        | Max objects scanned per calculation           |
+| `ENABLE_S3_URI_COPY`                           | no       | `false`          | Show "Copy S3 URI" action in object sidebar   |
+| `S3_ENDPOINT`                                  | yes      | -                | S3-compatible endpoint URL                    |
+| `S3_REGION`                                    | yes      | -                | S3 region string                              |
+| `S3_FORCE_PATH_STYLE`                          | no       | `true`           | Use path-style S3 URLs (needed by MinIO)      |
+| `MAX_UPLOAD_SIZE_MB`                           | no       | `100`            | Per-file upload size limit                    |
+| `AUDIT_LOG_SINK`                               | no       | `filesystem`     | Audit log sink (`filesystem`, `loki`, `none`) |
+| `AUDIT_LOG_DIR`                                | no       | `audit-logs`     | Filesystem audit log directory                |
+| `AUDIT_LOG_RETENTION_DAYS`                     | no       | `30`             | Filesystem audit log retention (days)         |
+| `AUDIT_LOG_LOKI_URL`                           | no       | -                | Loki push endpoint (required for `loki`)      |
+| `SENTRY_DSN`                                   | no       | -                | Backend Sentry DSN                            |
+| `SENTRY_ENVIRONMENT`                           | no       | `development`    | Backend Sentry environment                    |
+| `SENTRY_RELEASE`                               | no       | `atrium@0.1.0`   | Backend release identifier                    |
+| `SENTRY_TRACES_SAMPLE_RATE`                    | no       | `0.1`            | Backend tracing sample rate                   |
+| `SENTRY_ENABLE_LOGS`                           | no       | `true`           | Enable backend Sentry logs                    |
+| `SENTRY_ENABLE_METRICS`                        | no       | `true`           | Enable backend Sentry metrics                 |
+| `FRONTEND_SENTRY_DSN`                          | no       | -                | Frontend Sentry DSN (runtime via API)         |
+| `FRONTEND_SENTRY_ENVIRONMENT`                  | no       | `NODE_ENV`       | Frontend Sentry environment (runtime)         |
+| `FRONTEND_SENTRY_RELEASE`                      | no       | -                | Frontend release identifier (runtime)         |
+| `FRONTEND_SENTRY_TRACES_SAMPLE_RATE`           | no       | `0.1`            | Frontend tracing sample rate (runtime)        |
+| `FRONTEND_SENTRY_ENABLE_LOGS`                  | no       | `true`           | Enable frontend Sentry logs (runtime)         |
+| `FRONTEND_SENTRY_ENABLE_METRICS`               | no       | `true`           | Enable frontend Sentry metrics (runtime)      |
+| `FRONTEND_SENTRY_REPLAYS_SESSION_SAMPLE_RATE`  | no       | `0.1`            | Frontend replay session sample (runtime)      |
+| `FRONTEND_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE` | no       | `1.0`            | Frontend replay-on-error sample (runtime)     |
+| Variable                                       | Required | Default          | Description                                   |
+| ---------------------------------------------- | -------- | ---------------- | --------------------------------------------- |
+| `NODE_ENV`                                     | no       | `development`    | Runtime environment                           |
+| `PORT`                                         | no       | `3000`           | API/web app port                              |
+| `REDIS_URL`                                    | yes      | -                | Redis connection URL                          |
+| `SESSION_TTL_SECONDS`                          | no       | `86400`          | Session TTL in seconds                        |
+| `COOKIE_NAME`                                  | no       | `atrium_session` | Session cookie name                           |
+| `BUCKET_SIZE_CALC_INTERVAL_HOURS`              | no       | `1`              | Background bucket-size job interval (hours)   |
+| `BUCKET_SIZE_MAX_DURATION_MS`                  | no       | `300000`         | Max runtime per bucket size calculation       |
+| `BUCKET_SIZE_MAX_OBJECTS`                      | no       | `1000000`        | Max objects scanned per calculation           |
+| `S3_ENDPOINT`                                  | yes      | -                | S3-compatible endpoint URL                    |
+| `S3_REGION`                                    | yes      | -                | S3 region string                              |
+| `S3_FORCE_PATH_STYLE`                          | no       | `true`           | Use path-style S3 URLs (needed by MinIO)      |
+| `MAX_UPLOAD_SIZE_MB`                           | no       | `100`            | Per-file upload size limit                    |
+| `AUDIT_LOG_SINK`                               | no       | `filesystem`     | Audit log sink (`filesystem`, `loki`, `none`) |
+| `AUDIT_LOG_DIR`                                | no       | `audit-logs`     | Filesystem audit log directory                |
+| `AUDIT_LOG_RETENTION_DAYS`                     | no       | `30`             | Filesystem audit log retention (days)         |
+| `AUDIT_LOG_LOKI_URL`                           | no       | -                | Loki push endpoint (required for `loki`)      |
+| `SENTRY_DSN`                                   | no       | -                | Backend Sentry DSN                            |
+| `SENTRY_ENVIRONMENT`                           | no       | `development`    | Backend Sentry environment                    |
+| `SENTRY_RELEASE`                               | no       | `atrium@0.1.0`   | Backend release identifier                    |
+| `SENTRY_TRACES_SAMPLE_RATE`                    | no       | `0.1`            | Backend tracing sample rate                   |
+| `SENTRY_ENABLE_LOGS`                           | no       | `true`           | Enable backend Sentry logs                    |
+| `SENTRY_ENABLE_METRICS`                        | no       | `true`           | Enable backend Sentry metrics                 |
+| `FRONTEND_SENTRY_DSN`                          | no       | -                | Frontend Sentry DSN (runtime via API)         |
+| `FRONTEND_SENTRY_ENVIRONMENT`                  | no       | `NODE_ENV`       | Frontend Sentry environment (runtime)         |
+| `FRONTEND_SENTRY_RELEASE`                      | no       | -                | Frontend release identifier (runtime)         |
+| `FRONTEND_SENTRY_TRACES_SAMPLE_RATE`           | no       | `0.1`            | Frontend tracing sample rate (runtime)        |
+| `FRONTEND_SENTRY_ENABLE_LOGS`                  | no       | `true`           | Enable frontend Sentry logs (runtime)         |
+| `FRONTEND_SENTRY_ENABLE_METRICS`               | no       | `true`           | Enable frontend Sentry metrics (runtime)      |
+| `FRONTEND_SENTRY_REPLAYS_SESSION_SAMPLE_RATE`  | no       | `0.1`            | Frontend replay session sample (runtime)      |
+| `FRONTEND_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE` | no       | `1.0`            | Frontend replay-on-error sample (runtime)     |
 
 ## Configure for Different Providers
 
@@ -185,6 +225,7 @@ pnpm dev
 - Vite dev server runs on `5173`
 - API server runs on `3000`
 - Vite proxies `/api` to backend
+- MinIO test credentials are `minioadmin` for access key and `minioadmin` for secret key.
 
 ## Optional Features
 
@@ -200,7 +241,7 @@ pnpm start
 ```
 
 - Backend Sentry initializes via Node ESM preload (`--import ./dist/server/sentry.server.js`) before Fastify boot.
-- Frontend Sentry runtime settings are fetched from `/api/runtime-config` at app startup. `FRONTEND_SENTRY_*` variables are preferred, with `VITE_SENTRY_*` as fallback.
+- Frontend Sentry runtime settings are fetched from `/api/runtime-config` at app startup. Configure values via `FRONTEND_SENTRY_*` environment variables; the server does not rely on build-time values.
 
 ## Large Bucket Performance
 
