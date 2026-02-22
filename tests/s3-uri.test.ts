@@ -59,14 +59,15 @@ describe("copyTextToClipboard", () => {
   });
 
   it("falls back to execCommand when Clipboard API is unavailable", async () => {
+    const parentRemoveChild = vi.fn();
     const textarea = {
       value: "",
       setAttribute: vi.fn(),
       style: {} as Record<string, string>,
       select: vi.fn(),
+      parentNode: { removeChild: parentRemoveChild },
     };
     const appendChild = vi.fn();
-    const removeChild = vi.fn();
     const execCommand = vi.fn().mockReturnValue(true);
 
     Object.defineProperty(globalThis, "navigator", {
@@ -76,7 +77,7 @@ describe("copyTextToClipboard", () => {
     Object.defineProperty(globalThis, "document", {
       value: {
         createElement: vi.fn().mockReturnValue(textarea),
-        body: { appendChild, removeChild },
+        body: { appendChild },
         execCommand,
       },
       configurable: true,
@@ -86,19 +87,20 @@ describe("copyTextToClipboard", () => {
 
     expect(execCommand).toHaveBeenCalledWith("copy");
     expect(appendChild).toHaveBeenCalledWith(textarea);
-    expect(removeChild).toHaveBeenCalledWith(textarea);
+    expect(parentRemoveChild).toHaveBeenCalledWith(textarea);
   });
 
   it("falls back to execCommand when Clipboard API write rejects", async () => {
     const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+    const parentRemoveChild = vi.fn();
     const textarea = {
       value: "",
       setAttribute: vi.fn(),
       style: {} as Record<string, string>,
       select: vi.fn(),
+      parentNode: { removeChild: parentRemoveChild },
     };
     const appendChild = vi.fn();
-    const removeChild = vi.fn();
     const execCommand = vi.fn().mockReturnValue(true);
 
     Object.defineProperty(globalThis, "navigator", {
@@ -108,7 +110,7 @@ describe("copyTextToClipboard", () => {
     Object.defineProperty(globalThis, "document", {
       value: {
         createElement: vi.fn().mockReturnValue(textarea),
-        body: { appendChild, removeChild },
+        body: { appendChild },
         execCommand,
       },
       configurable: true,
@@ -119,6 +121,37 @@ describe("copyTextToClipboard", () => {
     expect(writeText).toHaveBeenCalledWith("s3://my-bucket/folder/");
     expect(execCommand).toHaveBeenCalledWith("copy");
     expect(appendChild).toHaveBeenCalledWith(textarea);
-    expect(removeChild).toHaveBeenCalledWith(textarea);
+    expect(parentRemoveChild).toHaveBeenCalledWith(textarea);
+  });
+
+  it("cleans up textarea when execCommand throws", async () => {
+    const parentRemoveChild = vi.fn();
+    const textarea = {
+      value: "",
+      setAttribute: vi.fn(),
+      style: {} as Record<string, string>,
+      select: vi.fn(),
+      parentNode: { removeChild: parentRemoveChild },
+    };
+    const appendChild = vi.fn();
+    const execCommand = vi.fn(() => {
+      throw new Error("unsupported");
+    });
+
+    Object.defineProperty(globalThis, "navigator", {
+      value: {},
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, "document", {
+      value: {
+        createElement: vi.fn().mockReturnValue(textarea),
+        body: { appendChild },
+        execCommand,
+      },
+      configurable: true,
+    });
+
+    await expect(copyTextToClipboard("s3://my-bucket/folder/")).rejects.toThrow("unsupported");
+    expect(parentRemoveChild).toHaveBeenCalledWith(textarea);
   });
 });
