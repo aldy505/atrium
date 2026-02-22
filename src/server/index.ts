@@ -69,6 +69,10 @@ app.addHook("onClose", async () => {
 
 app.get("/api/runtime-config", async () => {
   const sentryDsn = process.env.FRONTEND_SENTRY_DSN || process.env.VITE_SENTRY_DSN;
+  const enableS3UriCopy = await OpenFeature.getClient().getBooleanValue(
+    "ENABLE_S3_URI_COPY",
+    false,
+  );
 
   return {
     sentry: {
@@ -98,6 +102,9 @@ app.get("/api/runtime-config", async () => {
         process.env.FRONTEND_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE ||
         process.env.VITE_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE ||
         "1.0",
+    },
+    features: {
+      enableS3UriCopy,
     },
   };
 });

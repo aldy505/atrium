@@ -1,15 +1,6 @@
 import * as Sentry from "@sentry/react";
-
-type RuntimeSentryConfig = {
-  dsn?: string;
-  environment?: string;
-  release?: string;
-  tracesSampleRate?: string | number;
-  enableLogs?: boolean;
-  enableMetrics?: boolean;
-  replaysSessionSampleRate?: string | number;
-  replaysOnErrorSampleRate?: string | number;
-};
+import { getRuntimeConfig } from "./lib/api";
+import type { RuntimeSentryConfig } from "./lib/types";
 
 const parseRate = (value: string | number | undefined, fallback: string): number => {
   const input = value ?? fallback;
@@ -19,15 +10,7 @@ const parseRate = (value: string | number | undefined, fallback: string): number
 
 const fetchRuntimeSentryConfig = async (): Promise<RuntimeSentryConfig | null> => {
   try {
-    const response = await fetch("/api/runtime-config", {
-      credentials: "same-origin",
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const body = (await response.json()) as { sentry?: RuntimeSentryConfig };
+    const body = await getRuntimeConfig();
     return body.sentry || null;
   } catch {
     return null;

@@ -8,11 +8,18 @@ import {
   getBuckets,
   getDownloadUrl,
   getObjects,
+  getRuntimeConfig,
   login,
   logout,
   uploadFile,
 } from "./lib/api";
-import type { FileEntry, UploadSelection, UploadSourceFile, UploadTask } from "./lib/types";
+import type {
+  FileEntry,
+  FolderEntry,
+  UploadSelection,
+  UploadSourceFile,
+  UploadTask,
+} from "./lib/types";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { CreateFolderDialog } from "../components/CreateFolderDialog";
@@ -22,6 +29,7 @@ import { ObjectTable } from "../components/ObjectTable";
 import { UploadDropzone } from "../components/UploadDropzone";
 
 type DeleteTarget = { type: "file"; key: string } | { type: "folder"; key: string } | null;
+type SelectedObject = FileEntry | FolderEntry;
 
 const UPLOAD_CONCURRENCY = 3;
 
@@ -46,7 +54,7 @@ export const App = () => {
   const [authError, setAuthError] = useState<string | null>(null);
   const [selectedBucket, setSelectedBucket] = useState("");
   const [currentPrefix, setCurrentPrefix] = useState("");
-  const [selectedFile, setSelectedFile] = useState<FileEntry | null>(null);
+  const [selectedObject, setSelectedObject] = useState<SelectedObject | null>(null);
   const [filter, setFilter] = useState("");
   const [autoLoadOnScroll, setAutoLoadOnScroll] = useState(true);
   const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([]);
@@ -86,6 +94,12 @@ export const App = () => {
   const bucketsQuery = useQuery({
     queryKey: ["buckets", isAuthenticated],
     queryFn: getBuckets,
+    enabled: isAuthenticated,
+  });
+
+  const runtimeConfigQuery = useQuery({
+    queryKey: ["runtime-config"],
+    queryFn: getRuntimeConfig,
     enabled: isAuthenticated,
   });
 
@@ -204,12 +218,12 @@ export const App = () => {
       setIsAuthenticated(false);
       setSelectedBucket("");
       setCurrentPrefix("");
-      setSelectedFile(null);
+      setSelectedObject(null);
     },
   });
 
   const handleRefresh = async () => {
-    setSelectedFile(null);
+    setSelectedObject(null);
     await objectsQuery.refetch();
     await bucketsQuery.refetch();
   };
@@ -487,7 +501,7 @@ export const App = () => {
     },
     onSuccess: (response) => {
       setCurrentPrefix(response.key);
-      setSelectedFile(null);
+      setSelectedObject(null);
       setCreateFolderOpen(false);
       void handleRefresh();
     },
@@ -583,7 +597,7 @@ export const App = () => {
               onClick={() => {
                 setSelectedBucket(bucket);
                 setCurrentPrefix("");
-                setSelectedFile(null);
+                setSelectedObject(null);
               }}
             >
               {bucket}
@@ -604,7 +618,7 @@ export const App = () => {
               prefix={currentPrefix}
               onNavigate={(prefix) => {
                 setCurrentPrefix(prefix);
-                setSelectedFile(null);
+                setSelectedObject(null);
               }}
             />
           </div>
@@ -708,11 +722,13 @@ export const App = () => {
               folders={objectsData.folders}
               files={objectsData.files}
               filter={filter}
+              enableS3UriCopy={runtimeConfigQuery.data?.features?.enableS3UriCopy ?? false}
               onOpenFolder={(key) => {
                 setCurrentPrefix(key);
-                setSelectedFile(null);
+                setSelectedObject(null);
               }}
-              onSelectFile={setSelectedFile}
+              onSelectFolder={(folder) => setSelectedObject(folder)}
+              onSelectFile={(file) => setSelectedObject(file)}
               onDeleteFolder={(key) => setDeleteTarget({ type: "folder", key })}
               onDeleteFile={(key) => setDeleteTarget({ type: "file", key })}
               onDownloadFile={(key) => {
@@ -754,7 +770,11 @@ export const App = () => {
       </main>
 
       <section className="preview-column">
-        <FilePreview bucket={selectedBucket} file={selectedFile} />
+        <FilePreview
+          bucket={selectedBucket}
+          file={selectedObject}
+          enableS3UriCopy={runtimeConfigQuery.data?.features?.enableS3UriCopy ?? false}
+        />
       </section>
 
       {deleteTarget ? (

@@ -107,6 +107,7 @@ You can change these in `.env`.
 | `BUCKET_SIZE_CALC_INTERVAL_HOURS`              | no         | `1`              | Background bucket-size job interval (hours)   |
 | `BUCKET_SIZE_MAX_DURATION_MS`                  | no         | `300000`         | Max runtime per bucket size calculation       |
 | `BUCKET_SIZE_MAX_OBJECTS`                      | no         | `1000000`        | Max objects scanned per calculation           |
+| `ENABLE_S3_URI_COPY`                           | no         | `false`          | Show "Copy S3 URI" action in object sidebar   |
 | `S3_ENDPOINT`                                  | yes        | -                | S3-compatible endpoint URL                    |
 | `S3_REGION`                                    | yes        | -                | S3 region string                              |
 | `S3_FORCE_PATH_STYLE`                          | no         | `true`           | Use path-style S3 URLs (needed by MinIO)      |
@@ -184,6 +185,12 @@ pnpm dev
 - Vite dev server runs on `5173`
 - API server runs on `3000`
 - Vite proxies `/api` to backend
+
+## Optional Features
+
+- `ENABLE_S3_URI_COPY=true` enables a **Copy S3 URI** button in the object detail sidebar.
+  - Copies `s3://<bucket>/<key>` to clipboard for files and folders.
+  - Uses Clipboard API with a fallback for older browsers.
 
 ## Production Build
 
