@@ -16,8 +16,12 @@ export const buildS3Uri = (bucket: string, entry: S3Entry): string => {
 
 export const copyTextToClipboard = async (text: string): Promise<void> => {
   if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall through to execCommand fallback when Clipboard API write fails.
+    }
   }
 
   if (typeof document === "undefined") {

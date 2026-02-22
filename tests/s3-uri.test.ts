@@ -88,4 +88,37 @@ describe("copyTextToClipboard", () => {
     expect(appendChild).toHaveBeenCalledWith(textarea);
     expect(removeChild).toHaveBeenCalledWith(textarea);
   });
+
+  it("falls back to execCommand when Clipboard API write rejects", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+    const textarea = {
+      value: "",
+      setAttribute: vi.fn(),
+      style: {} as Record<string, string>,
+      select: vi.fn(),
+    };
+    const appendChild = vi.fn();
+    const removeChild = vi.fn();
+    const execCommand = vi.fn().mockReturnValue(true);
+
+    Object.defineProperty(globalThis, "navigator", {
+      value: { clipboard: { writeText } },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, "document", {
+      value: {
+        createElement: vi.fn().mockReturnValue(textarea),
+        body: { appendChild, removeChild },
+        execCommand,
+      },
+      configurable: true,
+    });
+
+    await copyTextToClipboard("s3://my-bucket/folder/");
+
+    expect(writeText).toHaveBeenCalledWith("s3://my-bucket/folder/");
+    expect(execCommand).toHaveBeenCalledWith("copy");
+    expect(appendChild).toHaveBeenCalledWith(textarea);
+    expect(removeChild).toHaveBeenCalledWith(textarea);
+  });
 });
