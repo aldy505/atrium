@@ -1,10 +1,17 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeAll } from "vitest";
 import Fastify from "fastify";
+import { OpenFeature } from "@openfeature/server-sdk";
+import { EnvVarProvider } from "@openfeature/env-var-provider";
 import { registerRuntimeConfigRoute } from "../src/server/runtime-config.js";
 
 // use Vitest env helpers to avoid mutating process.env directly
 
 describe("/api/runtime-config", () => {
+  beforeAll(async () => {
+    // Initialize OpenFeature with EnvVarProvider for tests
+    await OpenFeature.setProviderAndWait(new EnvVarProvider());
+  });
+
   afterEach(() => {
     vi.unstubAllEnvs();
   });
