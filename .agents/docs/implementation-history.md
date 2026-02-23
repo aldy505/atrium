@@ -127,7 +127,7 @@ Last updated: 2026-02-17
 
 - Added backend endpoint `GET /api/runtime-config` to expose safe frontend telemetry settings.
 - Frontend Sentry bootstrap now fetches runtime config at startup before rendering the app.
-- Runtime env precedence is `FRONTEND_SENTRY_*` then `VITE_SENTRY_*` fallback.
+- Runtime values are driven exclusively by `FRONTEND_SENTRY_*` environment variables.
 
 ## 12) 2026-02-15 Follow-up: Upstream S3/Auth Metrics
 

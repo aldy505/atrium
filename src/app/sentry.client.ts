@@ -19,26 +19,19 @@ const fetchRuntimeSentryConfig = async (): Promise<RuntimeSentryConfig | null> =
 
 export const initializeSentry = async (): Promise<void> => {
   const runtimeConfig = await fetchRuntimeSentryConfig();
-  const dsn = runtimeConfig?.dsn || (import.meta.env.VITE_SENTRY_DSN as string | undefined);
+  const dsn = runtimeConfig?.dsn;
 
+  // Do not initialize if runtime config lacks a DSN. This keeps the UI
+  // silent when nobody has provided frontend credentials (e.g. in a local
+  // development environment before backend is started).
   if (!dsn) {
     return;
   }
 
-  const environment =
-    runtimeConfig?.environment ||
-    (import.meta.env.VITE_SENTRY_ENVIRONMENT as string | undefined) ||
-    import.meta.env.MODE;
-
-  const release =
-    runtimeConfig?.release || (import.meta.env.VITE_SENTRY_RELEASE as string | undefined);
-
-  const enableLogs =
-    runtimeConfig?.enableLogs ?? (import.meta.env.VITE_SENTRY_ENABLE_LOGS || "true") !== "false";
-
-  const enableMetrics =
-    runtimeConfig?.enableMetrics ??
-    (import.meta.env.VITE_SENTRY_ENABLE_METRICS || "true") !== "false";
+  const environment = runtimeConfig?.environment ?? import.meta.env.MODE;
+  const release = runtimeConfig?.release;
+  const enableLogs = runtimeConfig?.enableLogs ?? true;
+  const enableMetrics = runtimeConfig?.enableMetrics ?? true;
 
   Sentry.init({
     dsn,
