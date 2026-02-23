@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { config } from "./config.js";
 import { OpenFeature } from "@openfeature/server-sdk";
-import type { RuntimeConfigResponse } from "./../app/lib/types.js";
+import type { RuntimeConfigResponse } from "../shared/types.js";
 
 export function registerRuntimeConfigRoute(app: FastifyInstance): void {
   app.get("/api/runtime-config", async () => {
