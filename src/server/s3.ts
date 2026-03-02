@@ -404,7 +404,11 @@ export const getObjectTags = async (
     .map((entry) => ({
       key: entry.Key as string,
       value: entry.Value as string,
-    }));
+    }))
+    .sort((left, right) => {
+      const keyCompare = left.key.localeCompare(right.key);
+      return keyCompare !== 0 ? keyCompare : left.value.localeCompare(right.value);
+    });
 
   return {
     bucket,

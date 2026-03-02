@@ -77,9 +77,16 @@ const normalizeTags = (tags: EditableTag[]): ObjectTag[] => {
   }));
 };
 
+const sortTags = (tags: ObjectTag[]): ObjectTag[] => {
+  return [...tags].sort((left, right) => {
+    const keyCompare = left.key.localeCompare(right.key);
+    return keyCompare !== 0 ? keyCompare : left.value.localeCompare(right.value);
+  });
+};
+
 const areTagsEqual = (left: EditableTag[], right: EditableTag[]): boolean => {
-  const normalizedLeft = normalizeTags(left);
-  const normalizedRight = normalizeTags(right);
+  const normalizedLeft = sortTags(normalizeTags(left));
+  const normalizedRight = sortTags(normalizeTags(right));
 
   if (normalizedLeft.length !== normalizedRight.length) {
     return false;
@@ -433,12 +440,13 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
       ) : null}
       {hasLoadedTags && isTaggingSupported ? (
         <div className="preview-tags-list">
-          {editableTags.map((tag) => (
+          {editableTags.map((tag, index) => (
             <div className="preview-tags-row" key={tag.id}>
               <input
                 type="text"
                 value={tag.key}
                 placeholder="Key"
+                aria-label={`Tag key ${index + 1}`}
                 maxLength={MAX_TAG_KEY_LENGTH}
                 disabled={isSavingTags}
                 onChange={(event) => {
@@ -449,6 +457,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
                 type="text"
                 value={tag.value}
                 placeholder="Value"
+                aria-label={`Tag value ${index + 1}`}
                 maxLength={MAX_TAG_VALUE_LENGTH}
                 disabled={isSavingTags}
                 onChange={(event) => {
@@ -457,6 +466,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
               />
               <button
                 type="button"
+                aria-label={`Remove tag ${tag.key.trim() || index + 1}`}
                 onClick={() => {
                   handleRemoveTag(tag.id);
                 }}
