@@ -855,6 +855,62 @@ input:focus-visible {
   text-overflow: ellipsis;
 }
 
+.preview-tags {
+  border-top: 1px solid var(--table-row-border);
+  padding-top: 0.7rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.preview-tags h4 {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+.preview-tags-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.preview-tags-note {
+  margin: 0;
+  color: var(--muted-text);
+  font-size: 0.82rem;
+}
+
+.preview-tags-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.preview-tags-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 0.45rem;
+}
+
+.preview-tags-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.preview-tags-error,
+.preview-tags-success {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.preview-tags-error {
+  color: var(--error-border);
+}
+
+.preview-tags-success {
+  color: var(--text);
+}
+
 .preview-text .hljs-keyword,
 .preview-text .hljs-literal,
 .preview-text .hljs-symbol,

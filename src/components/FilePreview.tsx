@@ -6,9 +6,15 @@ import xml from "highlight.js/lib/languages/xml";
 import markdown from "highlight.js/lib/languages/markdown";
 import plaintext from "highlight.js/lib/languages/plaintext";
 import csv from "highlight.js/lib/languages/plaintext";
-import { getDownloadUrl, getObjectMetadata, getTextPreview } from "../app/lib/api";
+import {
+  getDownloadUrl,
+  getObjectMetadata,
+  getObjectTags,
+  getTextPreview,
+  putObjectTags,
+} from "../app/lib/api";
 import { buildS3Uri, copyTextToClipboard } from "../app/lib/s3-uri";
-import type { FileEntry, FolderEntry } from "../app/lib/types";
+import type { FileEntry, FolderEntry, ObjectTag } from "../app/lib/types";
 import { getExtension, isImageFile, isTextFile } from "./FileIcon";
 
 hljs.registerLanguage("json", json);
@@ -21,6 +27,12 @@ type FilePreviewProps = {
   bucket: string;
   file: FileEntry | FolderEntry | null;
   enableS3UriCopy?: boolean;
+};
+
+type EditableTag = {
+  id: string;
+  key: string;
+  value: string;
 };
 
 const getLanguage = (filename: string): string => {
@@ -42,6 +54,81 @@ const getLanguage = (filename: string): string => {
 
 const RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+const MAX_TAGS = 10;
+const MAX_TAG_KEY_LENGTH = 128;
+const MAX_TAG_VALUE_LENGTH = 256;
+
+const createTagId = (): string => {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+};
+
+const mapObjectTagsToEditable = (tags: ObjectTag[]): EditableTag[] => {
+  return tags.map((tag) => ({
+    id: createTagId(),
+    key: tag.key,
+    value: tag.value,
+  }));
+};
+
+const normalizeTags = (tags: EditableTag[]): ObjectTag[] => {
+  return tags.map((tag) => ({
+    key: tag.key.trim(),
+    value: tag.value,
+  }));
+};
+
+const sortTags = (tags: ObjectTag[]): ObjectTag[] => {
+  return [...tags].sort((left, right) => {
+    const keyCompare = left.key.localeCompare(right.key);
+    return keyCompare !== 0 ? keyCompare : left.value.localeCompare(right.value);
+  });
+};
+
+const areTagsEqual = (left: EditableTag[], right: EditableTag[]): boolean => {
+  const normalizedLeft = sortTags(normalizeTags(left));
+  const normalizedRight = sortTags(normalizeTags(right));
+
+  if (normalizedLeft.length !== normalizedRight.length) {
+    return false;
+  }
+
+  return normalizedLeft.every((tag, index) => {
+    const candidate = normalizedRight[index];
+    return candidate?.key === tag.key && candidate?.value === tag.value;
+  });
+};
+
+const validateTags = (tags: EditableTag[]): string | null => {
+  if (tags.length > MAX_TAGS) {
+    return `You can only set up to ${MAX_TAGS} tags.`;
+  }
+
+  const seen = new Set<string>();
+
+  for (const tag of tags) {
+    const key = tag.key.trim();
+
+    if (!key) {
+      return "Tag key is required.";
+    }
+
+    if (key.length > MAX_TAG_KEY_LENGTH) {
+      return `Tag keys must be ${MAX_TAG_KEY_LENGTH} characters or less.`;
+    }
+
+    if (tag.value.length > MAX_TAG_VALUE_LENGTH) {
+      return `Tag values must be ${MAX_TAG_VALUE_LENGTH} characters or less.`;
+    }
+
+    if (seen.has(key)) {
+      return "Tag keys must be unique.";
+    }
+
+    seen.add(key);
+  }
+
+  return null;
+};
 
 const formatSize = (size?: number): string => {
   if (typeof size !== "number" || Number.isNaN(size)) {
@@ -128,6 +215,13 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
+  const [editableTags, setEditableTags] = useState<EditableTag[]>([]);
+  const [initialTags, setInitialTags] = useState<EditableTag[]>([]);
+  const [isSavingTags, setIsSavingTags] = useState(false);
+  const [tagFeedback, setTagFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const isFile = file?.type === "file";
   const fileEntry = isFile ? file : null;
 
@@ -135,6 +229,15 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
     queryKey: ["object-metadata", bucket, fileEntry?.key],
     queryFn: () => getObjectMetadata(bucket, fileEntry!.key),
     enabled: Boolean(fileEntry && bucket),
+  });
+
+  const tagsQuery = useQuery({
+    queryKey: ["object-tags", bucket, fileEntry?.key],
+    queryFn: () => getObjectTags(bucket, fileEntry!.key),
+    enabled: Boolean(fileEntry && bucket),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 60_000,
   });
 
   useEffect(() => {
@@ -191,6 +294,33 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
     setCopyStatus("idle");
   }, [file?.key]);
 
+  useEffect(() => {
+    setTagFeedback(null);
+    setEditableTags([]);
+    setInitialTags([]);
+  }, [fileEntry?.key]);
+
+  useEffect(() => {
+    if (!tagsQuery.data) {
+      return;
+    }
+
+    const mappedTags = mapObjectTagsToEditable(tagsQuery.data.tags);
+
+    // Don't overwrite local edits: only sync when editable and initial tags match
+    if (!areTagsEqual(editableTags, initialTags)) {
+      return;
+    }
+
+    // Avoid redundant updates when local tags already match the fetched tags
+    if (areTagsEqual(initialTags, mappedTags)) {
+      return;
+    }
+
+    setEditableTags(mappedTags);
+    setInitialTags(mappedTags);
+  }, [editableTags, initialTags, tagsQuery.data]);
+
   const highlighted = useMemo(() => {
     if (!fileEntry || !textContent) {
       return "";
@@ -204,6 +334,17 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
   const metadataSize = metadata?.size ?? fileEntry?.size;
   const metadataLastModified = metadata?.lastModified ?? fileEntry?.lastModified;
   const metadataContentType = metadata?.contentType ?? fileEntry?.contentType;
+  const hasLoadedTags = tagsQuery.status === "success";
+  const isTagsLoading = tagsQuery.isPending || (tagsQuery.isFetching && !hasLoadedTags);
+  const isTaggingSupported = hasLoadedTags && Boolean(tagsQuery.data?.isSupported);
+  const tagQueryError =
+    tagsQuery.error instanceof Error ? tagsQuery.error.message : "Failed to load tags.";
+  const tagValidationError = validateTags(editableTags);
+  const tagsChanged = !areTagsEqual(editableTags, initialTags);
+  const canAddTag =
+    isTaggingSupported && !isTagsLoading && !isSavingTags && editableTags.length < MAX_TAGS;
+  const canSaveTags =
+    isTaggingSupported && !isSavingTags && !isTagsLoading && tagsChanged && !tagValidationError;
 
   if (!file) {
     return (
@@ -232,6 +373,139 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
     </button>
   ) : null;
 
+  const handleAddTag = () => {
+    if (!canAddTag) {
+      return;
+    }
+
+    setTagFeedback(null);
+    setEditableTags((previous) => [...previous, { id: createTagId(), key: "", value: "" }]);
+  };
+
+  const handleRemoveTag = (tagId: string) => {
+    setTagFeedback(null);
+    setEditableTags((previous) => previous.filter((tag) => tag.id !== tagId));
+  };
+
+  const handleChangeTag = (tagId: string, field: "key" | "value", value: string) => {
+    setTagFeedback(null);
+    setEditableTags((previous) =>
+      previous.map((tag) => (tag.id === tagId ? { ...tag, [field]: value } : tag)),
+    );
+  };
+
+  const handleSaveTags = async () => {
+    if (!fileEntry || !isTaggingSupported) {
+      return;
+    }
+
+    const validationError = validateTags(editableTags);
+    if (validationError) {
+      setTagFeedback({ type: "error", message: validationError });
+      return;
+    }
+
+    try {
+      setIsSavingTags(true);
+      await putObjectTags(bucket, fileEntry.key, normalizeTags(editableTags));
+      const refreshed = await tagsQuery.refetch();
+      if (refreshed.data?.tags) {
+        const mappedTags = mapObjectTagsToEditable(refreshed.data.tags);
+        setEditableTags(mappedTags);
+        setInitialTags(mappedTags);
+      }
+      setTagFeedback({ type: "success", message: "Tags saved." });
+    } catch (saveError) {
+      setTagFeedback({
+        type: "error",
+        message: saveError instanceof Error ? saveError.message : "Failed to save tags.",
+      });
+    } finally {
+      setIsSavingTags(false);
+    }
+  };
+
+  const tagsSection = fileEntry ? (
+    <section className="preview-tags" aria-label="Object tags">
+      <div className="preview-tags-header">
+        <h4>Tags</h4>
+        <button type="button" onClick={handleAddTag} disabled={!canAddTag}>
+          Add Tag
+        </button>
+      </div>
+      {isTagsLoading ? <p className="preview-tags-note">Loading tags...</p> : null}
+      {tagsQuery.isError ? <p className="preview-tags-error">{tagQueryError}</p> : null}
+      {hasLoadedTags && isTaggingSupported && editableTags.length === 0 ? (
+        <p className="preview-tags-note">No tags yet. Add a tag to get started.</p>
+      ) : null}
+      {hasLoadedTags && isTaggingSupported ? (
+        <div className="preview-tags-list">
+          {editableTags.map((tag, index) => (
+            <div className="preview-tags-row" key={tag.id}>
+              <input
+                type="text"
+                value={tag.key}
+                placeholder="Key"
+                aria-label={`Tag key ${index + 1}`}
+                maxLength={MAX_TAG_KEY_LENGTH}
+                disabled={isSavingTags}
+                onChange={(event) => {
+                  handleChangeTag(tag.id, "key", event.target.value);
+                }}
+              />
+              <input
+                type="text"
+                value={tag.value}
+                placeholder="Value"
+                aria-label={`Tag value ${index + 1}`}
+                maxLength={MAX_TAG_VALUE_LENGTH}
+                disabled={isSavingTags}
+                onChange={(event) => {
+                  handleChangeTag(tag.id, "value", event.target.value);
+                }}
+              />
+              <button
+                type="button"
+                aria-label={`Remove tag ${tag.key.trim() || index + 1}`}
+                onClick={() => {
+                  handleRemoveTag(tag.id);
+                }}
+                disabled={isSavingTags}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {hasLoadedTags && !isTaggingSupported ? (
+        <p className="preview-tags-note">
+          {tagsQuery.data?.unsupportedReason ||
+            "Object tagging is unavailable for this provider or current credentials."}
+        </p>
+      ) : null}
+      {tagValidationError ? (
+        <p className="preview-tags-error" role="alert">
+          {tagValidationError}
+        </p>
+      ) : null}
+      {tagFeedback ? (
+        <p
+          className={tagFeedback.type === "error" ? "preview-tags-error" : "preview-tags-success"}
+          role={tagFeedback.type === "error" ? "alert" : undefined}
+          aria-live="polite"
+        >
+          {tagFeedback.message}
+        </p>
+      ) : null}
+      <div className="preview-tags-actions">
+        <button type="button" onClick={() => void handleSaveTags()} disabled={!canSaveTags}>
+          {isSavingTags ? "Saving..." : "Save Tags"}
+        </button>
+      </div>
+    </section>
+  ) : null;
+
   if (file.type === "folder") {
     return (
       <div className="preview-panel">
@@ -252,6 +526,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
           lastModified={metadataLastModified}
           contentType={metadataContentType}
         />
+        {tagsSection}
         <img
           src={getDownloadUrl(bucket, file.key, true)}
           alt={file.name}
@@ -271,6 +546,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
           lastModified={metadataLastModified}
           contentType={metadataContentType}
         />
+        {tagsSection}
         {isLoading ? (
           <div className="center-feedback status-banner" aria-live="polite">
             <span className="spinner" aria-hidden="true" />
@@ -300,6 +576,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
         lastModified={metadataLastModified}
         contentType={metadataContentType}
       />
+      {tagsSection}
       <p>No preview available for this file type.</p>
     </div>
   );

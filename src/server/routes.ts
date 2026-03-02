@@ -19,8 +19,11 @@ import {
   deletePrefix,
   getObject,
   getObjectMetadata,
+  getObjectTags,
+  isObjectTaggingUnsupported,
   listBuckets,
   listObjects,
+  putObjectTags,
   uploadObject,
 } from "./s3.js";
 import type { AuditEvent } from "./audit/index.js";
@@ -53,6 +56,35 @@ const bucketAndPrefixSchema = z.object({
   bucket: z.string().min(1),
   prefix: z.string().min(1),
 });
+
+const objectTagSchema = z.object({
+  key: z.string().trim().min(1).max(128),
+  value: z.string().max(256),
+});
+
+const putObjectTagsSchema = z
+  .object({
+    bucket: z.string().min(1),
+    key: z.string().min(1),
+    tags: z.array(objectTagSchema).max(10),
+  })
+  .superRefine((payload, context) => {
+    const seen = new Set<string>();
+
+    for (const [index, tag] of payload.tags.entries()) {
+      const normalizedKey = tag.key;
+
+      if (seen.has(normalizedKey)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["tags", index, "key"],
+          message: "Tag keys must be unique.",
+        });
+      }
+
+      seen.add(normalizedKey);
+    }
+  });
 
 const createFolderSchema = z.object({
   bucket: z.string().min(1),
@@ -199,6 +231,28 @@ const getAncestorPrefixes = (prefix: string): string[] => {
   }
 
   return prefixes;
+};
+
+const isObjectTaggingAccessDenied = (error: unknown): boolean => {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as {
+    name?: string;
+    Code?: string;
+    code?: string;
+    $metadata?: {
+      httpStatusCode?: number;
+    };
+  };
+
+  const code = candidate.Code || candidate.code || candidate.name;
+  const statusCode = candidate.$metadata?.httpStatusCode;
+
+  return (
+    code === "AccessDenied" || code === "Unauthorized" || statusCode === 401 || statusCode === 403
+  );
 };
 
 const invalidateListCacheForMutation = async (
@@ -753,6 +807,117 @@ export const registerS3Routes = (app: FastifyInstance): void => {
         error: toErrorMessage(error),
         durationMs: Date.now() - startedAt,
       });
+      throw error;
+    }
+  });
+
+  app.get("/api/s3/object-tags", { preHandler: requireSession }, async (request) => {
+    const startedAt = Date.now();
+    const parsed = bucketAndKeySchema.safeParse(request.query);
+
+    if (!parsed.success) {
+      recordS3Event(request, {
+        operation: "s3.object_tags.get",
+        result: "failure",
+        error: "invalid_query",
+        durationMs: Date.now() - startedAt,
+      });
+      throw new AppError("Invalid object tags query params", 400, true);
+    }
+
+    try {
+      const response = await getObjectTags(
+        request.sessionCredentials!,
+        parsed.data.bucket,
+        parsed.data.key,
+      );
+      recordS3Event(request, {
+        operation: "s3.object_tags.get",
+        result: "success",
+        bucket: parsed.data.bucket,
+        key: parsed.data.key,
+        durationMs: Date.now() - startedAt,
+      });
+      return response;
+    } catch (error) {
+      if (isObjectTaggingUnsupported(error) || isObjectTaggingAccessDenied(error)) {
+        recordS3Event(request, {
+          operation: "s3.object_tags.get",
+          result: "success",
+          bucket: parsed.data.bucket,
+          key: parsed.data.key,
+          durationMs: Date.now() - startedAt,
+        });
+
+        return {
+          bucket: parsed.data.bucket,
+          key: parsed.data.key,
+          tags: [],
+          isSupported: false,
+          unsupportedReason:
+            "Object tagging is unavailable for this provider or current credentials.",
+        };
+      }
+
+      recordS3Event(request, {
+        operation: "s3.object_tags.get",
+        result: "failure",
+        bucket: parsed.data.bucket,
+        key: parsed.data.key,
+        error: toErrorMessage(error),
+        durationMs: Date.now() - startedAt,
+      });
+      throw error;
+    }
+  });
+
+  app.put("/api/s3/object-tags", { preHandler: requireSession }, async (request) => {
+    const startedAt = Date.now();
+    const parsed = putObjectTagsSchema.safeParse(request.body);
+
+    if (!parsed.success) {
+      recordS3Event(request, {
+        operation: "s3.object_tags.put",
+        result: "failure",
+        error: "invalid_body",
+        durationMs: Date.now() - startedAt,
+      });
+      throw new AppError("Invalid object tags payload", 400, true);
+    }
+
+    try {
+      const response = await putObjectTags(
+        request.sessionCredentials!,
+        parsed.data.bucket,
+        parsed.data.key,
+        parsed.data.tags,
+      );
+      recordS3Event(request, {
+        operation: "s3.object_tags.put",
+        result: "success",
+        bucket: parsed.data.bucket,
+        key: parsed.data.key,
+        durationMs: Date.now() - startedAt,
+      });
+      return response;
+    } catch (error) {
+      recordS3Event(request, {
+        operation: "s3.object_tags.put",
+        result: "failure",
+        bucket: parsed.data.bucket,
+        key: parsed.data.key,
+        error: toErrorMessage(error),
+        durationMs: Date.now() - startedAt,
+      });
+
+      if (isObjectTaggingUnsupported(error) || isObjectTaggingAccessDenied(error)) {
+        throw new AppError(
+          "Object tagging is unavailable for this provider or current credentials.",
+          400,
+          true,
+        );
+      }
+
       throw error;
     }
   });

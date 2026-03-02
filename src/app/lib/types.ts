@@ -31,6 +31,19 @@ export type ObjectMetadataResponse = {
   contentType: string;
 };
 
+export type ObjectTag = {
+  key: string;
+  value: string;
+};
+
+export type ObjectTaggingResponse = {
+  bucket: string;
+  key: string;
+  tags: ObjectTag[];
+  isSupported: boolean;
+  unsupportedReason?: string;
+};
+
 export type UploadProgress = {
   filename: string;
   percent: number;
