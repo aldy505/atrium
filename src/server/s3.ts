@@ -1,16 +1,24 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  GetObjectTaggingCommand,
   HeadObjectCommand,
   ListBucketsCommand,
   ListObjectsV2Command,
+  PutObjectTaggingCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
 import { lookup as lookupMimeType } from "mime-types";
 import { config } from "./config.js";
 import { sentryDistributionMetric, sentryGaugeMetric } from "./observability.js";
-import type { ListObjectsResponse, ObjectMetadataResponse, SessionCredentials } from "./types.js";
+import type {
+  ListObjectsResponse,
+  ObjectMetadataResponse,
+  ObjectTag,
+  ObjectTaggingResponse,
+  SessionCredentials,
+} from "./types.js";
 
 let uploadFilesInFlight = 0;
 let downloadFilesInFlight = 0;
@@ -69,6 +77,30 @@ const isHeadObjectUnsupported = (error: unknown): boolean => {
   const statusCode = candidate.$metadata?.httpStatusCode;
 
   if (code === "NotImplemented" || code === "MethodNotAllowed") {
+    return true;
+  }
+
+  return statusCode === 405 || statusCode === 501;
+};
+
+export const isObjectTaggingUnsupported = (error: unknown): boolean => {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as {
+    name?: string;
+    Code?: string;
+    code?: string;
+    $metadata?: {
+      httpStatusCode?: number;
+    };
+  };
+
+  const code = candidate.Code || candidate.code || candidate.name;
+  const statusCode = candidate.$metadata?.httpStatusCode;
+
+  if (code === "NotImplemented" || code === "MethodNotAllowed" || code === "InvalidRequest") {
     return true;
   }
 
@@ -344,6 +376,78 @@ export const getObjectMetadata = async (
       contentType: inferContentType(key),
     };
   }
+};
+
+export const getObjectTags = async (
+  credentials: SessionCredentials,
+  bucket: string,
+  key: string,
+): Promise<ObjectTaggingResponse> => {
+  const client = getS3Client(credentials);
+
+  const response = await trackS3Latency(
+    "get_object_tagging",
+    () =>
+      client.send(
+        new GetObjectTaggingCommand({
+          Bucket: bucket,
+          Key: key,
+        }),
+      ),
+    {
+      bucket,
+    },
+  );
+
+  const tags: ObjectTag[] = (response.TagSet ?? [])
+    .filter((entry) => typeof entry.Key === "string" && typeof entry.Value === "string")
+    .map((entry) => ({
+      key: entry.Key as string,
+      value: entry.Value as string,
+    }));
+
+  return {
+    bucket,
+    key,
+    tags,
+    isSupported: true,
+  };
+};
+
+export const putObjectTags = async (
+  credentials: SessionCredentials,
+  bucket: string,
+  key: string,
+  tags: ObjectTag[],
+): Promise<ObjectTaggingResponse> => {
+  const client = getS3Client(credentials);
+
+  await trackS3Latency(
+    "put_object_tagging",
+    () =>
+      client.send(
+        new PutObjectTaggingCommand({
+          Bucket: bucket,
+          Key: key,
+          Tagging: {
+            TagSet: tags.map((tag) => ({
+              Key: tag.key,
+              Value: tag.value,
+            })),
+          },
+        }),
+      ),
+    {
+      bucket,
+    },
+  );
+
+  return {
+    bucket,
+    key,
+    tags,
+    isSupported: true,
+  };
 };
 
 export const deleteObject = async (

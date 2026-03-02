@@ -5,6 +5,8 @@ import {
   listBuckets,
   listObjects,
   getObjectMetadata,
+  getObjectTags,
+  putObjectTags,
   uploadObject,
   getObject,
   deleteObject,
@@ -216,6 +218,37 @@ describe("s3", () => {
       await expect(
         getObject(TEST_CREDENTIALS, testBucketName, "non-existent-download.txt"),
       ).rejects.toThrow();
+    });
+  });
+
+  describe("object tagging", () => {
+    const key = "tags-test.txt";
+
+    beforeAll(async () => {
+      await s3Client.send(
+        new PutObjectCommand({
+          Bucket: testBucketName,
+          Key: key,
+          Body: "Tagging test content",
+        }),
+      );
+    });
+
+    it("should replace and fetch object tags", async () => {
+      await putObjectTags(TEST_CREDENTIALS, testBucketName, key, [
+        { key: "team", value: "platform" },
+        { key: "env", value: "test" },
+      ]);
+
+      const response = await getObjectTags(TEST_CREDENTIALS, testBucketName, key);
+
+      expect(response.bucket).toBe(testBucketName);
+      expect(response.key).toBe(key);
+      expect(response.tags).toEqual([
+        { key: "team", value: "platform" },
+        { key: "env", value: "test" },
+      ]);
+      expect(response.isSupported).toBe(true);
     });
   });
 
