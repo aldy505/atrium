@@ -1,4 +1,10 @@
-import type { ListObjectsResponse, ObjectMetadataResponse, RuntimeConfigResponse } from "./types";
+import type {
+  ListObjectsResponse,
+  ObjectMetadataResponse,
+  ObjectTag,
+  ObjectTaggingResponse,
+  RuntimeConfigResponse,
+} from "./types";
 
 export type UploadRequest = {
   promise: Promise<void>;
@@ -205,6 +211,33 @@ export const getObjectMetadata = async (
   });
 
   return parseResponse<ObjectMetadataResponse>(response);
+};
+
+export const getObjectTags = async (
+  bucket: string,
+  key: string,
+): Promise<ObjectTaggingResponse> => {
+  const params = new URLSearchParams({ bucket, key });
+  const response = await fetch(`/api/s3/object-tags?${params.toString()}`, {
+    credentials: "include",
+  });
+
+  return parseResponse<ObjectTaggingResponse>(response);
+};
+
+export const putObjectTags = async (
+  bucket: string,
+  key: string,
+  tags: ObjectTag[],
+): Promise<ObjectTaggingResponse> => {
+  const response = await fetch("/api/s3/object-tags", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ bucket, key, tags }),
+  });
+
+  return parseResponse<ObjectTaggingResponse>(response);
 };
 
 export const getRuntimeConfig = async (): Promise<RuntimeConfigResponse> => {
