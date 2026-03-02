@@ -235,19 +235,24 @@ describe("s3", () => {
     });
 
     it("should replace and fetch object tags", async () => {
+      const expectedTags = [
+        { key: "team", value: "platform" },
+        { key: "env", value: "test" },
+      ].sort((left, right) => left.key.localeCompare(right.key));
+
       await putObjectTags(TEST_CREDENTIALS, testBucketName, key, [
         { key: "team", value: "platform" },
         { key: "env", value: "test" },
       ]);
 
       const response = await getObjectTags(TEST_CREDENTIALS, testBucketName, key);
+      const sortedResponseTags = [...response.tags].sort((left, right) =>
+        left.key.localeCompare(right.key),
+      );
 
       expect(response.bucket).toBe(testBucketName);
       expect(response.key).toBe(key);
-      expect(response.tags).toEqual([
-        { key: "team", value: "platform" },
-        { key: "env", value: "test" },
-      ]);
+      expect(sortedResponseTags).toEqual(expectedTags);
       expect(response.isSupported).toBe(true);
     });
   });
