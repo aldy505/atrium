@@ -100,7 +100,7 @@ export const isObjectTaggingUnsupported = (error: unknown): boolean => {
   const code = candidate.Code || candidate.code || candidate.name;
   const statusCode = candidate.$metadata?.httpStatusCode;
 
-  if (code === "NotImplemented" || code === "MethodNotAllowed" || code === "InvalidRequest") {
+  if (code === "NotImplemented" || code === "MethodNotAllowed") {
     return true;
   }
 

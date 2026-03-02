@@ -228,6 +228,9 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
     queryKey: ["object-tags", bucket, fileEntry?.key],
     queryFn: () => getObjectTags(bucket, fileEntry!.key),
     enabled: Boolean(fileEntry && bucket),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 60_000,
   });
 
   useEffect(() => {
@@ -295,10 +298,14 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
       return;
     }
 
+    if (!areTagsEqual(editableTags, initialTags)) {
+      return;
+    }
+
     const mappedTags = mapObjectTagsToEditable(tagsQuery.data.tags);
     setEditableTags(mappedTags);
     setInitialTags(mappedTags);
-  }, [tagsQuery.data]);
+  }, [editableTags, initialTags, tagsQuery.data]);
 
   const highlighted = useMemo(() => {
     if (!fileEntry || !textContent) {
@@ -313,16 +320,16 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
   const metadataSize = metadata?.size ?? fileEntry?.size;
   const metadataLastModified = metadata?.lastModified ?? fileEntry?.lastModified;
   const metadataContentType = metadata?.contentType ?? fileEntry?.contentType;
-  const isTaggingSupported = tagsQuery.data?.isSupported ?? true;
+  const hasLoadedTags = tagsQuery.status === "success";
+  const isTagsLoading = tagsQuery.isPending || (tagsQuery.isFetching && !hasLoadedTags);
+  const isTaggingSupported = hasLoadedTags && Boolean(tagsQuery.data?.isSupported);
+  const tagQueryError =
+    tagsQuery.error instanceof Error ? tagsQuery.error.message : "Failed to load tags.";
   const tagValidationError = validateTags(editableTags);
   const tagsChanged = !areTagsEqual(editableTags, initialTags);
-  const canAddTag = isTaggingSupported && editableTags.length < MAX_TAGS;
+  const canAddTag = isTaggingSupported && !isTagsLoading && editableTags.length < MAX_TAGS;
   const canSaveTags =
-    isTaggingSupported &&
-    !isSavingTags &&
-    !tagsQuery.isLoading &&
-    tagsChanged &&
-    !tagValidationError;
+    isTaggingSupported && !isSavingTags && !isTagsLoading && tagsChanged && !tagValidationError;
 
   if (!file) {
     return (
@@ -373,7 +380,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
   };
 
   const handleSaveTags = async () => {
-    if (!fileEntry) {
+    if (!fileEntry || !isTaggingSupported) {
       return;
     }
 
@@ -411,11 +418,12 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
           Add Tag
         </button>
       </div>
-      {tagsQuery.isLoading ? <p className="preview-tags-note">Loading tags...</p> : null}
-      {!tagsQuery.isLoading && editableTags.length === 0 ? (
+      {isTagsLoading ? <p className="preview-tags-note">Loading tags...</p> : null}
+      {tagsQuery.isError ? <p className="preview-tags-error">{tagQueryError}</p> : null}
+      {hasLoadedTags && isTaggingSupported && editableTags.length === 0 ? (
         <p className="preview-tags-note">No tags yet. Add a tag to get started.</p>
       ) : null}
-      {!tagsQuery.isLoading ? (
+      {hasLoadedTags && isTaggingSupported ? (
         <div className="preview-tags-list">
           {editableTags.map((tag) => (
             <div className="preview-tags-row" key={tag.id}>
@@ -424,7 +432,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
                 value={tag.key}
                 placeholder="Key"
                 maxLength={MAX_TAG_KEY_LENGTH}
-                disabled={!isTaggingSupported || isSavingTags}
+                disabled={isSavingTags}
                 onChange={(event) => {
                   handleChangeTag(tag.id, "key", event.target.value);
                 }}
@@ -434,7 +442,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
                 value={tag.value}
                 placeholder="Value"
                 maxLength={MAX_TAG_VALUE_LENGTH}
-                disabled={!isTaggingSupported || isSavingTags}
+                disabled={isSavingTags}
                 onChange={(event) => {
                   handleChangeTag(tag.id, "value", event.target.value);
                 }}
@@ -444,7 +452,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
                 onClick={() => {
                   handleRemoveTag(tag.id);
                 }}
-                disabled={!isTaggingSupported || isSavingTags}
+                disabled={isSavingTags}
               >
                 Remove
               </button>
@@ -452,7 +460,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
           ))}
         </div>
       ) : null}
-      {!isTaggingSupported ? (
+      {hasLoadedTags && !isTaggingSupported ? (
         <p className="preview-tags-note">
           {tagsQuery.data?.unsupportedReason ||
             "Object tagging is unavailable for this provider or current credentials."}

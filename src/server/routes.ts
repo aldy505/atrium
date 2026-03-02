@@ -58,7 +58,7 @@ const bucketAndPrefixSchema = z.object({
 });
 
 const objectTagSchema = z.object({
-  key: z.string().min(1).max(128),
+  key: z.string().trim().min(1).max(128),
   value: z.string().max(256),
 });
 
@@ -72,7 +72,9 @@ const putObjectTagsSchema = z
     const seen = new Set<string>();
 
     for (const [index, tag] of payload.tags.entries()) {
-      if (seen.has(tag.key)) {
+      const normalizedKey = tag.key;
+
+      if (seen.has(normalizedKey)) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["tags", index, "key"],
@@ -80,7 +82,7 @@ const putObjectTagsSchema = z
         });
       }
 
-      seen.add(tag.key);
+      seen.add(normalizedKey);
     }
   });
 
