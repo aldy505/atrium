@@ -298,11 +298,18 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
       return;
     }
 
+    const mappedTags = mapObjectTagsToEditable(tagsQuery.data.tags);
+
+    // Don't overwrite local edits: only sync when editable and initial tags match
     if (!areTagsEqual(editableTags, initialTags)) {
       return;
     }
 
-    const mappedTags = mapObjectTagsToEditable(tagsQuery.data.tags);
+    // Avoid redundant updates when local tags already match the fetched tags
+    if (areTagsEqual(initialTags, mappedTags)) {
+      return;
+    }
+
     setEditableTags(mappedTags);
     setInitialTags(mappedTags);
   }, [editableTags, initialTags, tagsQuery.data]);
@@ -327,7 +334,8 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
     tagsQuery.error instanceof Error ? tagsQuery.error.message : "Failed to load tags.";
   const tagValidationError = validateTags(editableTags);
   const tagsChanged = !areTagsEqual(editableTags, initialTags);
-  const canAddTag = isTaggingSupported && !isTagsLoading && editableTags.length < MAX_TAGS;
+  const canAddTag =
+    isTaggingSupported && !isTagsLoading && !isSavingTags && editableTags.length < MAX_TAGS;
   const canSaveTags =
     isTaggingSupported && !isSavingTags && !isTagsLoading && tagsChanged && !tagValidationError;
 
@@ -466,9 +474,17 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
             "Object tagging is unavailable for this provider or current credentials."}
         </p>
       ) : null}
-      {tagValidationError ? <p className="preview-tags-error">{tagValidationError}</p> : null}
+      {tagValidationError ? (
+        <p className="preview-tags-error" role="alert">
+          {tagValidationError}
+        </p>
+      ) : null}
       {tagFeedback ? (
-        <p className={tagFeedback.type === "error" ? "preview-tags-error" : "preview-tags-success"}>
+        <p
+          className={tagFeedback.type === "error" ? "preview-tags-error" : "preview-tags-success"}
+          role={tagFeedback.type === "error" ? "alert" : undefined}
+          aria-live="polite"
+        >
           {tagFeedback.message}
         </p>
       ) : null}

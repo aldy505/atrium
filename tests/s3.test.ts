@@ -234,6 +234,10 @@ describe("s3", () => {
       );
     });
 
+    afterAll(async () => {
+      await deleteObject(TEST_CREDENTIALS, testBucketName, key);
+    });
+
     it("should replace and fetch object tags", async () => {
       const expectedTags = [
         { key: "team", value: "platform" },
