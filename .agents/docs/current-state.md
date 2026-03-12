@@ -15,7 +15,6 @@ Last updated: 2026-02-22
 - Bucket-size API is consumed by UI for large-folder warning prompts (`Load first 1,000` vs `Load all`).
 - Sorting behavior is tiered by loaded object count with S3-native name ordering as default for large sets.
 - UI supports creating folders with validation and navigation on success.
-  <<<<<<< HEAD
 - Frontend Sentry is initialized at runtime via `/api/runtime-config`; settings come from `FRONTEND_SENTRY_*` environment variables.
 - Runtime feature flags are exposed via `/api/runtime-config`.
 - `ENABLE_S3_URI_COPY` now gates a sidebar **Copy S3 URI** action (disabled by default).

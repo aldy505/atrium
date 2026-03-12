@@ -185,8 +185,10 @@ export const ObjectTable = ({
 
     const handleScroll = () => {
       onScrollPositionChange?.(element.scrollTop);
-      const denominator = Math.max(1, element.scrollHeight);
-      onScrollProgress?.((element.scrollTop + element.clientHeight) / denominator);
+      const scrollable = element.scrollHeight - element.clientHeight;
+      const progress =
+        scrollable > 0 ? Math.min(1, Math.max(0, element.scrollTop / scrollable)) : 0;
+      onScrollProgress?.(progress);
     };
 
     handleScroll();

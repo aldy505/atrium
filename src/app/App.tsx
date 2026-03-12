@@ -47,7 +47,7 @@ const UPLOAD_CONCURRENCY = 3;
 const INITIAL_PAGE_SIZE = 100;
 
 const calculateNextPageSize = (loadedItems: number): number => {
-  if (loadedItems < 100) {
+  if (loadedItems <= 100) {
     return 250;
   }
 
@@ -95,7 +95,11 @@ export const App = () => {
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const prefetchInFlightRef = useRef(false);
   const promptedFolderKeysRef = useRef<Set<string>>(new Set());
+  const requestedBucketSizeBucketsRef = useRef<Set<string>>(new Set());
   const tableScrollPositionsRef = useRef<Map<string, number>>(new Map());
+  const scrollPersistTimeoutRef = useRef<number | null>(null);
+  const lastScrollTopRef = useRef<number | null>(null);
+  const lastScrollKeyRef = useRef<string | null>(null);
   const uploadSourceMapRef = useRef<Map<string, UploadSourceFile>>(new Map());
   const uploadAbortMapRef = useRef<Map<string, () => void>>(new Map());
   const canceledUploadTaskIdsRef = useRef<Set<string>>(new Set());
@@ -145,17 +149,28 @@ export const App = () => {
   const bucketSizeQuery = useQuery({
     queryKey: ["bucket-size", selectedBucket],
     queryFn: async (): Promise<BucketSizeResponse | null> => {
+      if (!selectedBucket) {
+        return null;
+      }
+
       const size = await getBucketSize(selectedBucket);
 
       if (size) {
         return size;
       }
 
-      await requestBucketSizeCalculation(selectedBucket).catch(() => undefined);
+      if (!requestedBucketSizeBucketsRef.current.has(selectedBucket)) {
+        requestedBucketSizeBucketsRef.current.add(selectedBucket);
+        await requestBucketSizeCalculation(selectedBucket).catch(() => undefined);
+      }
+
       return null;
     },
     enabled: isAuthenticated && Boolean(selectedBucket),
     retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 5 * 60 * 1000,
   });
 
   const isLargeBucket = (bucketSizeQuery.data?.objectCount ?? 0) >= 10_000;
@@ -250,7 +265,7 @@ export const App = () => {
   const nonNativeSortDisabled = sortTier === "large";
   const loadedObjectsLabel = objectsData
     ? objectsData.isTruncated
-      ? `Loaded ${loadedObjectCount.toLocaleString()} of ${loadedObjectCount.toLocaleString()}+ objects`
+      ? `Loaded ${loadedObjectCount.toLocaleString()}+ objects`
       : `Loaded ${loadedObjectCount.toLocaleString()} objects`
     : null;
   const searchLimitWarning =
@@ -351,10 +366,43 @@ export const App = () => {
     (scrollTop: number) => {
       const key = `${selectedBucket}::${currentPrefix}`;
       tableScrollPositionsRef.current.set(key, scrollTop);
-      window.sessionStorage.setItem(`object-scroll:${key}`, String(scrollTop));
+      lastScrollTopRef.current = scrollTop;
+      lastScrollKeyRef.current = key;
+
+      if (scrollPersistTimeoutRef.current !== null) {
+        return;
+      }
+
+      scrollPersistTimeoutRef.current = window.setTimeout(() => {
+        scrollPersistTimeoutRef.current = null;
+        const latestKey = lastScrollKeyRef.current;
+        const latestValue = lastScrollTopRef.current;
+
+        if (!latestKey || typeof latestValue !== "number") {
+          return;
+        }
+
+        window.sessionStorage.setItem(`object-scroll:${latestKey}`, String(latestValue));
+      }, 100);
     },
     [currentPrefix, selectedBucket],
   );
+
+  useEffect(() => {
+    return () => {
+      if (scrollPersistTimeoutRef.current !== null) {
+        window.clearTimeout(scrollPersistTimeoutRef.current);
+        scrollPersistTimeoutRef.current = null;
+      }
+
+      const latestKey = lastScrollKeyRef.current;
+      const latestValue = lastScrollTopRef.current;
+
+      if (latestKey && typeof latestValue === "number") {
+        window.sessionStorage.setItem(`object-scroll:${latestKey}`, String(latestValue));
+      }
+    };
+  }, []);
 
   const loadSavedScrollPosition = useCallback((key: string): number => {
     const inMemory = tableScrollPositionsRef.current.get(key);
