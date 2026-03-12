@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useInfiniteQuery, useMutation, useQuery, type InfiniteData } from "@tanstack/react-query";
 import {
   checkSession,
   createFolder,
@@ -16,6 +16,7 @@ import {
 import type {
   FileEntry,
   FolderEntry,
+  ListObjectsResponse,
   UploadSelection,
   UploadSourceFile,
   UploadTask,
@@ -30,8 +31,22 @@ import { UploadDropzone } from "../components/UploadDropzone";
 
 type DeleteTarget = { type: "file"; key: string } | { type: "folder"; key: string } | null;
 type SelectedObject = FileEntry | FolderEntry;
+type ObjectsPageParam = { continuationToken?: string; maxKeys: number };
 
 const UPLOAD_CONCURRENCY = 3;
+const INITIAL_PAGE_SIZE = 100;
+
+const calculateNextPageSize = (loadedItems: number): number => {
+  if (loadedItems < 100) {
+    return 250;
+  }
+
+  if (loadedItems < 500) {
+    return 500;
+  }
+
+  return 1000;
+};
 
 const normalizeRelativePath = (value: string): string => {
   return value
@@ -56,13 +71,16 @@ export const App = () => {
   const [currentPrefix, setCurrentPrefix] = useState("");
   const [selectedObject, setSelectedObject] = useState<SelectedObject | null>(null);
   const [filter, setFilter] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [isSearchDebouncing, setIsSearchDebouncing] = useState(false);
   const [autoLoadOnScroll, setAutoLoadOnScroll] = useState(true);
   const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([]);
   const [isUploadingBatch, setIsUploadingBatch] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
-  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const prefetchInFlightRef = useRef(false);
+  const tableScrollPositionsRef = useRef<Map<string, number>>(new Map());
   const uploadSourceMapRef = useRef<Map<string, UploadSourceFile>>(new Map());
   const uploadAbortMapRef = useRef<Map<string, () => void>>(new Map());
   const canceledUploadTaskIdsRef = useRef<Set<string>>(new Set());
@@ -109,15 +127,35 @@ export const App = () => {
     }
   }, [bucketsQuery.data, selectedBucket]);
 
-  const objectsQuery = useInfiniteQuery({
+  const objectsQuery = useInfiniteQuery<
+    ListObjectsResponse,
+    Error,
+    InfiniteData<ListObjectsResponse>,
+    [string, string, string],
+    ObjectsPageParam
+  >({
     queryKey: ["objects", selectedBucket, currentPrefix],
     queryFn: ({ pageParam }) =>
       getObjects(selectedBucket, currentPrefix, {
-        continuationToken: pageParam || undefined,
-        maxKeys: 200,
+        continuationToken: pageParam.continuationToken,
+        maxKeys: pageParam.maxKeys,
       }),
-    initialPageParam: "",
-    getNextPageParam: (lastPage) => lastPage.nextContinuationToken ?? undefined,
+    initialPageParam: { continuationToken: undefined, maxKeys: INITIAL_PAGE_SIZE },
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage.nextContinuationToken) {
+        return undefined;
+      }
+
+      const loadedItems = allPages.reduce(
+        (sum, page) => sum + page.folders.length + page.files.length,
+        0,
+      );
+
+      return {
+        continuationToken: lastPage.nextContinuationToken,
+        maxKeys: calculateNextPageSize(loadedItems),
+      };
+    },
     enabled: isAuthenticated && Boolean(selectedBucket),
   });
 
@@ -156,44 +194,90 @@ export const App = () => {
   }, [objectsQuery.data]);
 
   const canLoadMore = Boolean(objectsData?.isTruncated && objectsQuery.hasNextPage);
+  const tableStateKey = `${selectedBucket}::${currentPrefix}`;
+  const loadedObjectCount = (objectsData?.folders.length ?? 0) + (objectsData?.files.length ?? 0);
+  const loadedObjectsLabel = objectsData
+    ? objectsData.isTruncated
+      ? `Loaded ${loadedObjectCount.toLocaleString()} of ${loadedObjectCount.toLocaleString()}+ objects`
+      : `Loaded ${loadedObjectCount.toLocaleString()} objects`
+    : null;
+  const searchLimitWarning =
+    loadedObjectCount >= 10_000 && filter
+      ? "Search is limited to currently loaded items. For better results, navigate by folder prefix."
+      : null;
 
   useEffect(() => {
-    if (!autoLoadOnScroll || !canLoadMore || objectsQuery.isFetchingNextPage) {
+    if (searchInput === filter) {
+      setIsSearchDebouncing(false);
       return;
     }
 
-    const target = loadMoreSentinelRef.current;
-
-    if (!target) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-
-        if (entry?.isIntersecting && objectsQuery.hasNextPage && !objectsQuery.isFetchingNextPage) {
-          void objectsQuery.fetchNextPage();
-        }
-      },
-      {
-        root: null,
-        rootMargin: "220px 0px",
-      },
-    );
-
-    observer.observe(target);
+    setIsSearchDebouncing(true);
+    const timeoutId = window.setTimeout(() => {
+      setFilter(searchInput);
+      setIsSearchDebouncing(false);
+    }, 300);
 
     return () => {
-      observer.disconnect();
+      window.clearTimeout(timeoutId);
     };
-  }, [
-    autoLoadOnScroll,
-    canLoadMore,
-    objectsQuery.fetchNextPage,
-    objectsQuery.hasNextPage,
-    objectsQuery.isFetchingNextPage,
-  ]);
+  }, [filter, searchInput]);
+
+  const clearSearch = useCallback(() => {
+    setSearchInput("");
+    setFilter("");
+    setIsSearchDebouncing(false);
+  }, []);
+
+  const saveScrollPosition = useCallback(
+    (scrollTop: number) => {
+      const key = `${selectedBucket}::${currentPrefix}`;
+      tableScrollPositionsRef.current.set(key, scrollTop);
+      window.sessionStorage.setItem(`object-scroll:${key}`, String(scrollTop));
+    },
+    [currentPrefix, selectedBucket],
+  );
+
+  const loadSavedScrollPosition = useCallback((key: string): number => {
+    const inMemory = tableScrollPositionsRef.current.get(key);
+
+    if (typeof inMemory === "number") {
+      return inMemory;
+    }
+
+    const rawValue = window.sessionStorage.getItem(`object-scroll:${key}`);
+
+    if (!rawValue) {
+      return 0;
+    }
+
+    const parsed = Number(rawValue);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, []);
+  const restoredScrollTop = useMemo(
+    () => loadSavedScrollPosition(tableStateKey),
+    [loadSavedScrollPosition, tableStateKey],
+  );
+
+  const handleTableScrollProgress = useCallback(
+    (progress: number) => {
+      if (
+        !autoLoadOnScroll ||
+        progress < 0.8 ||
+        !canLoadMore ||
+        objectsQuery.isFetchingNextPage ||
+        prefetchInFlightRef.current
+      ) {
+        return;
+      }
+
+      prefetchInFlightRef.current = true;
+      void objectsQuery.fetchNextPage().finally(() => {
+        prefetchInFlightRef.current = false;
+      });
+    },
+    [autoLoadOnScroll, canLoadMore, objectsQuery],
+  );
 
   const loginMutation = useMutation({
     mutationFn: ({
@@ -218,6 +302,7 @@ export const App = () => {
       setIsAuthenticated(false);
       setSelectedBucket("");
       setCurrentPrefix("");
+      clearSearch();
       setSelectedObject(null);
     },
   });
@@ -501,6 +586,7 @@ export const App = () => {
     },
     onSuccess: (response) => {
       setCurrentPrefix(response.key);
+      clearSearch();
       setSelectedObject(null);
       setCreateFolderOpen(false);
       void handleRefresh();
@@ -515,8 +601,12 @@ export const App = () => {
       return "Loading objects...";
     }
 
+    if (isSearchDebouncing) {
+      return "Preparing search...";
+    }
+
     return null;
-  }, [objectsQuery.isLoading]);
+  }, [isSearchDebouncing, objectsQuery.isLoading]);
 
   const objectsErrorMessage = useMemo(() => {
     if (!objectsQuery.isError) {
@@ -597,6 +687,7 @@ export const App = () => {
               onClick={() => {
                 setSelectedBucket(bucket);
                 setCurrentPrefix("");
+                clearSearch();
                 setSelectedObject(null);
               }}
             >
@@ -618,6 +709,7 @@ export const App = () => {
               prefix={currentPrefix}
               onNavigate={(prefix) => {
                 setCurrentPrefix(prefix);
+                clearSearch();
                 setSelectedObject(null);
               }}
             />
@@ -640,9 +732,9 @@ export const App = () => {
             </button>
             <input
               type="search"
-              value={filter}
+              value={searchInput}
               placeholder="Filter by name"
-              onChange={(event) => setFilter(event.target.value)}
+              onChange={(event) => setSearchInput(event.target.value)}
             />
             <button type="button" onClick={() => void handleRefresh()}>
               Refresh
@@ -718,23 +810,41 @@ export const App = () => {
           ) : null}
 
           {!statusText && !objectsErrorMessage && objectsData ? (
-            <ObjectTable
-              folders={objectsData.folders}
-              files={objectsData.files}
-              filter={filter}
-              enableS3UriCopy={runtimeConfigQuery.data?.features?.enableS3UriCopy ?? false}
-              onOpenFolder={(key) => {
-                setCurrentPrefix(key);
-                setSelectedObject(null);
-              }}
-              onSelectFolder={(folder) => setSelectedObject(folder)}
-              onSelectFile={(file) => setSelectedObject(file)}
-              onDeleteFolder={(key) => setDeleteTarget({ type: "folder", key })}
-              onDeleteFile={(key) => setDeleteTarget({ type: "file", key })}
-              onDownloadFile={(key) => {
-                window.open(getDownloadUrl(selectedBucket, key), "_blank");
-              }}
-            />
+            <>
+              <ObjectTable
+                folders={objectsData.folders}
+                files={objectsData.files}
+                filter={filter}
+                loadingMore={objectsQuery.isFetchingNextPage}
+                scrollStateKey={tableStateKey}
+                initialScrollTop={restoredScrollTop}
+                enableS3UriCopy={runtimeConfigQuery.data?.features?.enableS3UriCopy ?? false}
+                onScrollProgress={handleTableScrollProgress}
+                onScrollPositionChange={saveScrollPosition}
+                onOpenFolder={(key) => {
+                  setCurrentPrefix(key);
+                  clearSearch();
+                  setSelectedObject(null);
+                }}
+                onSelectFolder={(folder) => setSelectedObject(folder)}
+                onSelectFile={(file) => setSelectedObject(file)}
+                onDeleteFolder={(key) => setDeleteTarget({ type: "folder", key })}
+                onDeleteFile={(key) => setDeleteTarget({ type: "file", key })}
+                onDownloadFile={(key) => {
+                  window.open(getDownloadUrl(selectedBucket, key), "_blank");
+                }}
+              />
+              {loadedObjectsLabel ? (
+                <div className="table-progress" aria-live="polite">
+                  {loadedObjectsLabel}
+                </div>
+              ) : null}
+              {searchLimitWarning ? (
+                <div className="table-progress warning-text" role="status">
+                  {searchLimitWarning}
+                </div>
+              ) : null}
+            </>
           ) : null}
 
           {!statusText && !objectsErrorMessage && canLoadMore ? (
@@ -748,11 +858,7 @@ export const App = () => {
                   {objectsQuery.isFetchingNextPage ? "Loading more..." : "Load more"}
                 </button>
               </div>
-              <div
-                ref={loadMoreSentinelRef}
-                className="table-pagination-sentinel"
-                aria-hidden="true"
-              />
+              <div className="table-pagination-sentinel" aria-hidden="true" />
             </>
           ) : null}
 
