@@ -144,9 +144,11 @@ export const ObjectTable = ({
 
     return [
       ...filteredFolders.map(
-        (folder) => ({ kind: "folder", id: folder.key, value: folder }) as const,
+        (folder) => ({ kind: "folder", id: `folder:${folder.key}`, value: folder }) as const,
       ),
-      ...filteredFiles.map((file) => ({ kind: "file", id: file.key, value: file }) as const),
+      ...filteredFiles.map(
+        (file) => ({ kind: "file", id: `file:${file.key}`, value: file }) as const,
+      ),
     ];
   }, [files, folders, normalized]);
 

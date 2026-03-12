@@ -73,6 +73,8 @@ const splitPathSegments = (value: string): string[] => {
     .filter(Boolean);
 };
 
+const buildPromptedFolderKey = (bucket: string, key: string): string => `${bucket}::${key}`;
+
 export const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
@@ -171,6 +173,15 @@ export const App = () => {
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     staleTime: 5 * 60 * 1000,
+    refetchInterval: (query) => {
+      const data = query.state.data as BucketSizeResponse | null | undefined;
+
+      if (!selectedBucket || data) {
+        return false;
+      }
+
+      return requestedBucketSizeBucketsRef.current.has(selectedBucket) ? 15_000 : false;
+    },
   });
 
   const isLargeBucket = (bucketSizeQuery.data?.objectCount ?? 0) >= 10_000;
@@ -456,14 +467,16 @@ export const App = () => {
 
   const handleOpenFolder = useCallback(
     (key: string) => {
-      if (isLargeBucket && !promptedFolderKeysRef.current.has(key)) {
+      const promptedKey = buildPromptedFolderKey(selectedBucket, key);
+
+      if (isLargeBucket && !promptedFolderKeysRef.current.has(promptedKey)) {
         setPendingLargeFolderKey(key);
         return;
       }
 
       navigateToPrefix(key);
     },
-    [isLargeBucket, navigateToPrefix],
+    [isLargeBucket, navigateToPrefix, selectedBucket],
   );
 
   const loginMutation = useMutation({
@@ -1120,7 +1133,9 @@ export const App = () => {
               <button
                 type="button"
                 onClick={() => {
-                  promptedFolderKeysRef.current.add(pendingLargeFolderKey);
+                  promptedFolderKeysRef.current.add(
+                    buildPromptedFolderKey(selectedBucket, pendingLargeFolderKey),
+                  );
                   setFolderLoadLimit(1000);
                   navigateToPrefix(pendingLargeFolderKey);
                   setPendingLargeFolderKey(null);
@@ -1132,7 +1147,9 @@ export const App = () => {
                 type="button"
                 className="danger"
                 onClick={() => {
-                  promptedFolderKeysRef.current.add(pendingLargeFolderKey);
+                  promptedFolderKeysRef.current.add(
+                    buildPromptedFolderKey(selectedBucket, pendingLargeFolderKey),
+                  );
                   setFolderLoadLimit(null);
                   navigateToPrefix(pendingLargeFolderKey);
                   setPendingLargeFolderKey(null);
