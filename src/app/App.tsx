@@ -75,6 +75,15 @@ const splitPathSegments = (value: string): string[] => {
 
 const buildPromptedFolderKey = (bucket: string, key: string): string => `${bucket}::${key}`;
 
+const parseModifiedTime = (lastModified?: string): number => {
+  if (!lastModified) {
+    return 0;
+  }
+
+  const rawTime = new Date(lastModified).getTime();
+  return Number.isNaN(rawTime) ? 0 : rawTime;
+};
+
 export const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
@@ -97,6 +106,7 @@ export const App = () => {
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const prefetchInFlightRef = useRef(false);
   const promptedFolderKeysRef = useRef<Set<string>>(new Set());
+  const promptedFolderLoadLimitsRef = useRef<Map<string, number | null>>(new Map());
   const requestedBucketSizeBucketsRef = useRef<Set<string>>(new Set());
   const tableScrollPositionsRef = useRef<Map<string, number>>(new Map());
   const scrollPersistTimeoutRef = useRef<number | null>(null);
@@ -184,7 +194,15 @@ export const App = () => {
     },
   });
 
-  const isLargeBucket = (bucketSizeQuery.data?.objectCount ?? 0) >= 10_000;
+  const isBucketSizeKnown = bucketSizeQuery.data !== null;
+  const isBucketSizeUnknown =
+    !isBucketSizeKnown &&
+    Boolean(selectedBucket) &&
+    requestedBucketSizeBucketsRef.current.has(selectedBucket);
+  const isLargeBucket = isBucketSizeKnown
+    ? (bucketSizeQuery.data?.objectCount ?? 0) >= 10_000
+    : false;
+  const shouldShowLargeFolderPrompt = isLargeBucket || isBucketSizeUnknown;
 
   const objectsQuery = useInfiniteQuery<
     ListObjectsResponse,
@@ -289,7 +307,9 @@ export const App = () => {
       : null;
   const folderHealthLabel = isLargeBucket
     ? `Large bucket: ~${(bucketSizeQuery.data?.objectCount ?? 0).toLocaleString()} objects`
-    : null;
+    : isBucketSizeUnknown
+      ? "Bucket size is being calculated. Large-folder warnings stay enabled until ready."
+      : null;
 
   useEffect(() => {
     if (searchInput === filter) {
@@ -357,14 +377,14 @@ export const App = () => {
       files.sort((a, b) => b.size - a.size || a.name.localeCompare(b.name));
     } else if (sortMode === "modified-asc") {
       files.sort((a, b) => {
-        const timeA = a.lastModified ? Date.parse(a.lastModified) : 0;
-        const timeB = b.lastModified ? Date.parse(b.lastModified) : 0;
+        const timeA = parseModifiedTime(a.lastModified);
+        const timeB = parseModifiedTime(b.lastModified);
         return timeA - timeB || a.name.localeCompare(b.name);
       });
     } else if (sortMode === "modified-desc") {
       files.sort((a, b) => {
-        const timeA = a.lastModified ? Date.parse(a.lastModified) : 0;
-        const timeB = b.lastModified ? Date.parse(b.lastModified) : 0;
+        const timeA = parseModifiedTime(a.lastModified);
+        const timeB = parseModifiedTime(b.lastModified);
         return timeB - timeA || a.name.localeCompare(b.name);
       });
     }
@@ -469,14 +489,19 @@ export const App = () => {
     (key: string) => {
       const promptedKey = buildPromptedFolderKey(selectedBucket, key);
 
-      if (isLargeBucket && !promptedFolderKeysRef.current.has(promptedKey)) {
+      if (shouldShowLargeFolderPrompt && !promptedFolderKeysRef.current.has(promptedKey)) {
         setPendingLargeFolderKey(key);
         return;
       }
 
+      if (promptedFolderKeysRef.current.has(promptedKey)) {
+        const storedLimit = promptedFolderLoadLimitsRef.current.get(promptedKey);
+        setFolderLoadLimit(typeof storedLimit === "undefined" ? null : storedLimit);
+      }
+
       navigateToPrefix(key);
     },
-    [isLargeBucket, navigateToPrefix, selectedBucket],
+    [navigateToPrefix, selectedBucket, shouldShowLargeFolderPrompt],
   );
 
   const loginMutation = useMutation({
@@ -1133,9 +1158,9 @@ export const App = () => {
               <button
                 type="button"
                 onClick={() => {
-                  promptedFolderKeysRef.current.add(
-                    buildPromptedFolderKey(selectedBucket, pendingLargeFolderKey),
-                  );
+                  const promptedKey = buildPromptedFolderKey(selectedBucket, pendingLargeFolderKey);
+                  promptedFolderKeysRef.current.add(promptedKey);
+                  promptedFolderLoadLimitsRef.current.set(promptedKey, 1000);
                   setFolderLoadLimit(1000);
                   navigateToPrefix(pendingLargeFolderKey);
                   setPendingLargeFolderKey(null);
@@ -1147,9 +1172,9 @@ export const App = () => {
                 type="button"
                 className="danger"
                 onClick={() => {
-                  promptedFolderKeysRef.current.add(
-                    buildPromptedFolderKey(selectedBucket, pendingLargeFolderKey),
-                  );
+                  const promptedKey = buildPromptedFolderKey(selectedBucket, pendingLargeFolderKey);
+                  promptedFolderKeysRef.current.add(promptedKey);
+                  promptedFolderLoadLimitsRef.current.set(promptedKey, null);
                   setFolderLoadLimit(null);
                   navigateToPrefix(pendingLargeFolderKey);
                   setPendingLargeFolderKey(null);
