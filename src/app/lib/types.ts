@@ -71,4 +71,17 @@ export type UploadTask = {
   error?: string;
 };
 
+export type BucketSizeResponse = {
+  bucket: string;
+  totalSize: number;
+  sizeFormatted: string;
+  objectCount: number;
+  isApproximate: boolean;
+  isInaccessible: boolean;
+  error?: string;
+  calculatedAt: number;
+  ageMinutes: number;
+  isStale: boolean;
+};
+
 export type { RuntimeSentryConfig, RuntimeConfigResponse } from "../../shared/types";

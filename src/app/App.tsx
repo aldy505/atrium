@@ -6,14 +6,17 @@ import {
   deleteObject,
   deletePrefix,
   getBuckets,
+  getBucketSize,
   getDownloadUrl,
   getObjects,
   getRuntimeConfig,
   login,
+  requestBucketSizeCalculation,
   logout,
   uploadFile,
 } from "./lib/api";
 import type {
+  BucketSizeResponse,
   FileEntry,
   FolderEntry,
   ListObjectsResponse,
@@ -32,6 +35,13 @@ import { UploadDropzone } from "../components/UploadDropzone";
 type DeleteTarget = { type: "file"; key: string } | { type: "folder"; key: string } | null;
 type SelectedObject = FileEntry | FolderEntry;
 type ObjectsPageParam = { continuationToken?: string; maxKeys: number };
+type SortMode =
+  | "name-asc"
+  | "name-desc"
+  | "size-asc"
+  | "size-desc"
+  | "modified-asc"
+  | "modified-desc";
 
 const UPLOAD_CONCURRENCY = 3;
 const INITIAL_PAGE_SIZE = 100;
@@ -73,6 +83,10 @@ export const App = () => {
   const [filter, setFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [isSearchDebouncing, setIsSearchDebouncing] = useState(false);
+  const [sortMode, setSortMode] = useState<SortMode>("name-asc");
+  const [isSorting, setIsSorting] = useState(false);
+  const [folderLoadLimit, setFolderLoadLimit] = useState<number | null>(null);
+  const [pendingLargeFolderKey, setPendingLargeFolderKey] = useState<string | null>(null);
   const [autoLoadOnScroll, setAutoLoadOnScroll] = useState(true);
   const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([]);
   const [isUploadingBatch, setIsUploadingBatch] = useState(false);
@@ -80,6 +94,7 @@ export const App = () => {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const prefetchInFlightRef = useRef(false);
+  const promptedFolderKeysRef = useRef<Set<string>>(new Set());
   const tableScrollPositionsRef = useRef<Map<string, number>>(new Map());
   const uploadSourceMapRef = useRef<Map<string, UploadSourceFile>>(new Map());
   const uploadAbortMapRef = useRef<Map<string, () => void>>(new Map());
@@ -127,20 +142,44 @@ export const App = () => {
     }
   }, [bucketsQuery.data, selectedBucket]);
 
+  const bucketSizeQuery = useQuery({
+    queryKey: ["bucket-size", selectedBucket],
+    queryFn: async (): Promise<BucketSizeResponse | null> => {
+      const size = await getBucketSize(selectedBucket);
+
+      if (size) {
+        return size;
+      }
+
+      await requestBucketSizeCalculation(selectedBucket).catch(() => undefined);
+      return null;
+    },
+    enabled: isAuthenticated && Boolean(selectedBucket),
+    retry: false,
+  });
+
+  const isLargeBucket = (bucketSizeQuery.data?.objectCount ?? 0) >= 10_000;
+
   const objectsQuery = useInfiniteQuery<
     ListObjectsResponse,
     Error,
     InfiniteData<ListObjectsResponse>,
-    [string, string, string],
+    [string, string, string, number],
     ObjectsPageParam
   >({
-    queryKey: ["objects", selectedBucket, currentPrefix],
+    queryKey: ["objects", selectedBucket, currentPrefix, folderLoadLimit ?? 0],
     queryFn: ({ pageParam }) =>
       getObjects(selectedBucket, currentPrefix, {
         continuationToken: pageParam.continuationToken,
         maxKeys: pageParam.maxKeys,
       }),
-    initialPageParam: { continuationToken: undefined, maxKeys: INITIAL_PAGE_SIZE },
+    initialPageParam: {
+      continuationToken: undefined,
+      maxKeys:
+        folderLoadLimit !== null
+          ? Math.min(INITIAL_PAGE_SIZE, Math.max(1, folderLoadLimit))
+          : INITIAL_PAGE_SIZE,
+    },
     getNextPageParam: (lastPage, allPages) => {
       if (!lastPage.nextContinuationToken) {
         return undefined;
@@ -150,10 +189,20 @@ export const App = () => {
         (sum, page) => sum + page.folders.length + page.files.length,
         0,
       );
+      const remainingItems =
+        folderLoadLimit !== null
+          ? Math.max(0, folderLoadLimit - loadedItems)
+          : Number.POSITIVE_INFINITY;
+
+      if (remainingItems <= 0) {
+        return undefined;
+      }
+
+      const nextMaxKeys = Math.min(calculateNextPageSize(loadedItems), remainingItems);
 
       return {
         continuationToken: lastPage.nextContinuationToken,
-        maxKeys: calculateNextPageSize(loadedItems),
+        maxKeys: Math.max(1, nextMaxKeys),
       };
     },
     enabled: isAuthenticated && Boolean(selectedBucket),
@@ -196,6 +245,9 @@ export const App = () => {
   const canLoadMore = Boolean(objectsData?.isTruncated && objectsQuery.hasNextPage);
   const tableStateKey = `${selectedBucket}::${currentPrefix}`;
   const loadedObjectCount = (objectsData?.folders.length ?? 0) + (objectsData?.files.length ?? 0);
+  const sortTier =
+    loadedObjectCount < 1_000 ? "small" : loadedObjectCount < 10_000 ? "medium" : "large";
+  const nonNativeSortDisabled = sortTier === "large";
   const loadedObjectsLabel = objectsData
     ? objectsData.isTruncated
       ? `Loaded ${loadedObjectCount.toLocaleString()} of ${loadedObjectCount.toLocaleString()}+ objects`
@@ -205,6 +257,13 @@ export const App = () => {
     loadedObjectCount >= 10_000 && filter
       ? "Search is limited to currently loaded items. For better results, navigate by folder prefix."
       : null;
+  const sortWarning =
+    nonNativeSortDisabled && sortMode !== "name-asc"
+      ? "Large folder mode: size/date sorting is disabled for performance."
+      : null;
+  const folderHealthLabel = isLargeBucket
+    ? `Large bucket: ~${(bucketSizeQuery.data?.objectCount ?? 0).toLocaleString()} objects`
+    : null;
 
   useEffect(() => {
     if (searchInput === filter) {
@@ -223,11 +282,70 @@ export const App = () => {
     };
   }, [filter, searchInput]);
 
+  useEffect(() => {
+    if (sortTier === "medium" && sortMode !== "name-asc") {
+      setIsSorting(true);
+      const timeoutId = window.setTimeout(() => {
+        setIsSorting(false);
+      }, 220);
+
+      return () => {
+        window.clearTimeout(timeoutId);
+      };
+    }
+
+    setIsSorting(false);
+  }, [sortMode, sortTier]);
+
   const clearSearch = useCallback(() => {
     setSearchInput("");
     setFilter("");
     setIsSearchDebouncing(false);
   }, []);
+
+  const sortedObjects = useMemo(() => {
+    if (!objectsData) {
+      return null;
+    }
+
+    const folders = [...objectsData.folders];
+    const files = [...objectsData.files];
+
+    if (sortMode === "name-asc") {
+      return { folders, files };
+    }
+
+    if (sortMode === "name-desc") {
+      folders.reverse();
+      files.reverse();
+      return { folders, files };
+    }
+
+    if (nonNativeSortDisabled) {
+      return { folders, files };
+    }
+
+    if (sortMode === "size-asc") {
+      files.sort((a, b) => a.size - b.size || a.name.localeCompare(b.name));
+    } else if (sortMode === "size-desc") {
+      files.sort((a, b) => b.size - a.size || a.name.localeCompare(b.name));
+    } else if (sortMode === "modified-asc") {
+      files.sort((a, b) => {
+        const timeA = a.lastModified ? Date.parse(a.lastModified) : 0;
+        const timeB = b.lastModified ? Date.parse(b.lastModified) : 0;
+        return timeA - timeB || a.name.localeCompare(b.name);
+      });
+    } else if (sortMode === "modified-desc") {
+      files.sort((a, b) => {
+        const timeA = a.lastModified ? Date.parse(a.lastModified) : 0;
+        const timeB = b.lastModified ? Date.parse(b.lastModified) : 0;
+        return timeB - timeA || a.name.localeCompare(b.name);
+      });
+    }
+
+    folders.sort((a, b) => a.name.localeCompare(b.name));
+    return { folders, files };
+  }, [nonNativeSortDisabled, objectsData, sortMode]);
 
   const saveScrollPosition = useCallback(
     (scrollTop: number) => {
@@ -277,6 +395,27 @@ export const App = () => {
       });
     },
     [autoLoadOnScroll, canLoadMore, objectsQuery],
+  );
+
+  const navigateToPrefix = useCallback(
+    (prefix: string) => {
+      setCurrentPrefix(prefix);
+      clearSearch();
+      setSelectedObject(null);
+    },
+    [clearSearch],
+  );
+
+  const handleOpenFolder = useCallback(
+    (key: string) => {
+      if (isLargeBucket && !promptedFolderKeysRef.current.has(key)) {
+        setPendingLargeFolderKey(key);
+        return;
+      }
+
+      navigateToPrefix(key);
+    },
+    [isLargeBucket, navigateToPrefix],
   );
 
   const loginMutation = useMutation({
@@ -597,16 +736,16 @@ export const App = () => {
   });
 
   const statusText = useMemo(() => {
-    if (objectsQuery.isLoading) {
-      return "Loading objects...";
-    }
-
     if (isSearchDebouncing) {
       return "Preparing search...";
     }
 
+    if (isSorting) {
+      return "Sorting objects...";
+    }
+
     return null;
-  }, [isSearchDebouncing, objectsQuery.isLoading]);
+  }, [isSearchDebouncing, isSorting]);
 
   const objectsErrorMessage = useMemo(() => {
     if (!objectsQuery.isError) {
@@ -687,6 +826,7 @@ export const App = () => {
               onClick={() => {
                 setSelectedBucket(bucket);
                 setCurrentPrefix("");
+                setFolderLoadLimit(null);
                 clearSearch();
                 setSelectedObject(null);
               }}
@@ -708,11 +848,13 @@ export const App = () => {
               bucket={selectedBucket}
               prefix={currentPrefix}
               onNavigate={(prefix) => {
-                setCurrentPrefix(prefix);
-                clearSearch();
-                setSelectedObject(null);
+                setFolderLoadLimit(null);
+                navigateToPrefix(prefix);
               }}
             />
+            {folderHealthLabel ? (
+              <p className="toolbar-note warning-text">{folderHealthLabel}</p>
+            ) : null}
           </div>
           <div className="toolbar-actions">
             <label className="auto-load-toggle">
@@ -736,6 +878,33 @@ export const App = () => {
               placeholder="Filter by name"
               onChange={(event) => setSearchInput(event.target.value)}
             />
+            <select
+              value={sortMode}
+              onChange={(event) => {
+                const nextSort = event.target.value as SortMode;
+                if (nonNativeSortDisabled && nextSort !== "name-asc") {
+                  setSortMode("name-asc");
+                  return;
+                }
+
+                setSortMode(nextSort);
+              }}
+            >
+              <option value="name-asc">Name (A-Z, S3 native)</option>
+              <option value="name-desc">Name (Z-A)</option>
+              <option value="size-asc" disabled={nonNativeSortDisabled}>
+                Size (smallest first)
+              </option>
+              <option value="size-desc" disabled={nonNativeSortDisabled}>
+                Size (largest first)
+              </option>
+              <option value="modified-asc" disabled={nonNativeSortDisabled}>
+                Modified (oldest first)
+              </option>
+              <option value="modified-desc" disabled={nonNativeSortDisabled}>
+                Modified (newest first)
+              </option>
+            </select>
             <button type="button" onClick={() => void handleRefresh()}>
               Refresh
             </button>
@@ -809,23 +978,20 @@ export const App = () => {
             </div>
           ) : null}
 
-          {!statusText && !objectsErrorMessage && objectsData ? (
+          {!objectsErrorMessage && (objectsData || objectsQuery.isLoading) ? (
             <>
               <ObjectTable
-                folders={objectsData.folders}
-                files={objectsData.files}
+                folders={sortedObjects?.folders ?? []}
+                files={sortedObjects?.files ?? []}
                 filter={filter}
                 loadingMore={objectsQuery.isFetchingNextPage}
                 scrollStateKey={tableStateKey}
                 initialScrollTop={restoredScrollTop}
+                isInitialLoading={objectsQuery.isLoading}
                 enableS3UriCopy={runtimeConfigQuery.data?.features?.enableS3UriCopy ?? false}
                 onScrollProgress={handleTableScrollProgress}
                 onScrollPositionChange={saveScrollPosition}
-                onOpenFolder={(key) => {
-                  setCurrentPrefix(key);
-                  clearSearch();
-                  setSelectedObject(null);
-                }}
+                onOpenFolder={handleOpenFolder}
                 onSelectFolder={(folder) => setSelectedObject(folder)}
                 onSelectFile={(file) => setSelectedObject(file)}
                 onDeleteFolder={(key) => setDeleteTarget({ type: "folder", key })}
@@ -842,6 +1008,16 @@ export const App = () => {
               {searchLimitWarning ? (
                 <div className="table-progress warning-text" role="status">
                   {searchLimitWarning}
+                </div>
+              ) : null}
+              {sortWarning ? (
+                <div className="table-progress warning-text" role="status">
+                  {sortWarning}
+                </div>
+              ) : null}
+              {folderLoadLimit !== null ? (
+                <div className="table-progress" role="status">
+                  Limited mode active: loading first {folderLoadLimit.toLocaleString()} objects.
                 </div>
               ) : null}
             </>
@@ -882,6 +1058,52 @@ export const App = () => {
           enableS3UriCopy={runtimeConfigQuery.data?.features?.enableS3UriCopy ?? false}
         />
       </section>
+
+      {pendingLargeFolderKey ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-card">
+            <h3>Large folder warning</h3>
+            <p>
+              This bucket is estimated at{" "}
+              {(bucketSizeQuery.data?.objectCount ?? loadedObjectCount).toLocaleString()} objects.
+              Loading all objects may be slow.
+            </p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  promptedFolderKeysRef.current.add(pendingLargeFolderKey);
+                  setFolderLoadLimit(1000);
+                  navigateToPrefix(pendingLargeFolderKey);
+                  setPendingLargeFolderKey(null);
+                }}
+              >
+                Load first 1,000
+              </button>
+              <button
+                type="button"
+                className="danger"
+                onClick={() => {
+                  promptedFolderKeysRef.current.add(pendingLargeFolderKey);
+                  setFolderLoadLimit(null);
+                  navigateToPrefix(pendingLargeFolderKey);
+                  setPendingLargeFolderKey(null);
+                }}
+              >
+                Load all
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingLargeFolderKey(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {deleteTarget ? (
         <ConfirmDialog

@@ -79,6 +79,10 @@ input {
   font: inherit;
 }
 
+select {
+  font: inherit;
+}
+
 button {
   cursor: pointer;
   border: none;
@@ -221,6 +225,19 @@ button:disabled {
   padding: 0.45rem 0.65rem;
   background: var(--panel-soft-bg);
   color: inherit;
+}
+
+.toolbar-actions select {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  background: var(--panel-soft-bg);
+  color: inherit;
+}
+
+.toolbar-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
 }
 
 .breadcrumbs {
@@ -400,6 +417,37 @@ button:disabled {
 
 .warning-text {
   color: var(--error-border);
+}
+
+.skeleton-cell {
+  display: inline-block;
+  height: 0.9rem;
+  border-radius: 0.4rem;
+  background: color-mix(in oklab, var(--muted-text) 20%, transparent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.skeleton-name {
+  width: min(100%, 16rem);
+}
+
+.skeleton-short {
+  width: 4.5rem;
+}
+
+.skeleton-medium {
+  width: 7rem;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+
+  50% {
+    opacity: 0.85;
+  }
 }
 
 .preview-column {

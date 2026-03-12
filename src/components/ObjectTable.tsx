@@ -7,6 +7,7 @@ type ObjectTableProps = {
   folders: FolderEntry[];
   files: FileEntry[];
   filter: string;
+  isInitialLoading?: boolean;
   loadingMore?: boolean;
   scrollStateKey: string;
   initialScrollTop?: number;
@@ -83,6 +84,7 @@ export const ObjectTable = ({
   folders,
   files,
   filter,
+  isInitialLoading = false,
   loadingMore = false,
   scrollStateKey,
   initialScrollTop = 0,
@@ -96,6 +98,41 @@ export const ObjectTable = ({
   onDeleteFile,
   onDownloadFile,
 }: ObjectTableProps) => {
+  if (isInitialLoading) {
+    return (
+      <div className="object-table-wrap">
+        <table className="object-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Size</th>
+              <th>Modified</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: 10 }, (_, index) => (
+              <tr key={`skeleton-${index}`}>
+                <td>
+                  <span className="skeleton-cell skeleton-name" />
+                </td>
+                <td>
+                  <span className="skeleton-cell skeleton-short" />
+                </td>
+                <td>
+                  <span className="skeleton-cell skeleton-medium" />
+                </td>
+                <td>
+                  <span className="skeleton-cell skeleton-short" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
   const normalized = filter.toLowerCase();
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const appliedScrollKeyRef = useRef<string | null>(null);
