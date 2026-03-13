@@ -771,6 +771,10 @@ input:focus-visible {
   letter-spacing: 0.01em;
 }
 
+.preview-toggle {
+  display: none;
+}
+
 .toolbar-actions input,
 .login-card input {
   border-radius: 0.72rem;
@@ -863,6 +867,22 @@ input:focus-visible {
 .preview-column {
   background: var(--panel-bg);
   border-left: 1px solid var(--border);
+}
+
+.preview-column-mobile {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.preview-mobile-header {
+  display: none;
+}
+
+.preview-mobile-header h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
 }
 
 .preview-panel h3,
@@ -1115,6 +1135,29 @@ input:focus-visible {
 
   .preview-column {
     border-left: 1px solid var(--border);
+  }
+}
+
+@media (max-width: 900px) {
+  .preview-toggle {
+    display: inline-flex;
+  }
+
+  .preview-column-mobile {
+    grid-column: 1 / -1;
+  }
+
+  .preview-mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem 0;
+  }
+
+  .preview-column-mobile .preview-panel,
+  .preview-column-mobile .preview-empty {
+    padding-top: 0.7rem;
   }
 }
 
