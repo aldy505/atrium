@@ -196,3 +196,11 @@ Last updated: 2026-02-17
 - Added dedicated folder `Details` action in object table so folder metadata view can drive copy behavior.
 - Added URI utilities in `src/app/lib/s3-uri.ts` and tests in `tests/s3-uri.test.ts`.
 - Updated `.env.example` and `README.md` to document `ENABLE_S3_URI_COPY`.
+
+## 17) 2026-03-13 Follow-up: PDF Preview Support (Issue #6)
+
+- Added PDF detection to the existing file preview flow.
+- Integrated `pdfjs-viewer-element` to provide a larger PDF.js-based viewer with page navigation, thumbnails, search, zoom, and download access.
+- Kept sidebar metadata and tag editing available for PDF objects while moving document rendering into a modal for better usability.
+- Used the existing `/api/s3/download?inline=1` route to avoid backend-specific PDF processing.
+- Treated password-protected PDFs as best effort through the embedded viewer and preserved direct download as the fallback path.
