@@ -1,6 +1,6 @@
 # Atrium Current State (Handoff)
 
-Last updated: 2026-02-22
+Last updated: 2026-03-13
 
 ## Current Status
 
@@ -21,6 +21,7 @@ Last updated: 2026-02-22
 - Sidebar detail view now supports both file and folder selections.
 - PDF files can now open in a larger modal viewer powered by `pdfjs-viewer-element` / PDF.js, while metadata and tags remain in the sidebar.
 - Password-protected PDFs are handled on a best-effort basis via the embedded viewer; download remains available as a fallback.
+- Browser favicon support is now wired through the Vite app shell with generated `svg`, `png`, and `ico` assets at the repo root.
 
 - Backend S3/auth metric instrumentation is in place.
 - Audit logging is in place with filesystem CSV or Loki sinks.
@@ -66,3 +67,4 @@ Last updated: 2026-02-22
 5. Verify audit log output in filesystem or Loki based on `AUDIT_LOG_SINK`.
 6. Create a folder and confirm navigation enters the new prefix.
 7. Preview a multi-page PDF, verify zoom/search/thumbs in the viewer, and confirm download still works.
+8. Open the app in a browser and confirm the generated favicon appears in the tab in both dev and production builds.

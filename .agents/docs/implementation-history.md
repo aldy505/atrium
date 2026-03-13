@@ -1,6 +1,6 @@
 # Atrium Implementation History
 
-Last updated: 2026-02-17
+Last updated: 2026-03-13
 
 ## 1) Project Initialization
 
@@ -204,3 +204,18 @@ Last updated: 2026-02-17
 - Kept sidebar metadata and tag editing available for PDF objects while moving document rendering into a modal for better usability.
 - Used the existing `/api/s3/download?inline=1` route to avoid backend-specific PDF processing.
 - Treated password-protected PDFs as best effort through the embedded viewer and preserved direct download as the fallback path.
+
+## 18) 2026-03-13 Follow-up: Generated Favicon Set
+
+- Added original favicon assets at the repo root:
+  - `favicon.svg`
+  - `favicon.png`
+  - `favicon.ico`
+- Updated the Vite app shell in `index.html` to reference the favicon files with explicit SVG, PNG, and ICO `<link rel="icon">` tags.
+- Verified that Vite fingerprints the assets into `dist/client/assets/*` and rewrites the built HTML references automatically.
+- Validation run for the favicon work:
+  - `pnpm run fmt`
+  - `pnpm run lint:fix`
+  - `pnpm run test`
+  - `pnpm run typecheck`
+  - `pnpm run build`
