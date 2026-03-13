@@ -9,7 +9,7 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import fastifySchedule from "@fastify/schedule";
-import { OpenFeature, MultiProvider, FirstMatchStrategy } from "@openfeature/server-sdk";
+import { OpenFeature, MultiProvider, FirstSuccessfulStrategy } from "@openfeature/server-sdk";
 import { OFREPProvider } from "@openfeature/ofrep-provider";
 import { EnvVarProvider } from "@openfeature/env-var-provider";
 import { config } from "./config.js";
@@ -23,15 +23,16 @@ import { captureServerError, registerObservabilityHooks, sentryLog } from "./obs
 import { registerRuntimeConfigRoute } from "./runtime-config.js";
 
 // Create providers
-const primaryProvider = new OFREPProvider({
+const primaryProvider = new EnvVarProvider({
+  disableConstantCase: false,
+});
+const backupProvider = new OFREPProvider({
   baseUrl: process.env.OFREP_ENDPOINT ?? "http://localhost:2321",
 });
-const backupProvider = new EnvVarProvider();
-
 // Create multi-provider with a strategy
 const multiProvider = new MultiProvider(
   [{ provider: primaryProvider }, { provider: backupProvider }],
-  new FirstMatchStrategy(),
+  new FirstSuccessfulStrategy(),
 );
 
 // Register the multi-provider
