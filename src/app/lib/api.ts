@@ -1,4 +1,5 @@
 import type {
+  BucketSizeResponse,
   ListObjectsResponse,
   ObjectMetadataResponse,
   ObjectTag,
@@ -246,4 +247,28 @@ export const getRuntimeConfig = async (): Promise<RuntimeConfigResponse> => {
   });
 
   return parseResponse<RuntimeConfigResponse>(response);
+};
+
+export const getBucketSize = async (bucketName: string): Promise<BucketSizeResponse | null> => {
+  const response = await fetch(`/api/s3/buckets/${encodeURIComponent(bucketName)}/size`, {
+    credentials: "include",
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  return parseResponse<BucketSizeResponse>(response);
+};
+
+export const requestBucketSizeCalculation = async (bucketName: string): Promise<void> => {
+  const response = await fetch(`/api/s3/buckets/${encodeURIComponent(bucketName)}/size/calculate`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!response.ok && response.status !== 202) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error || "Failed to trigger bucket size calculation");
+  }
 };

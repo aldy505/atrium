@@ -1,21 +1,25 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useInfiniteQuery, useMutation, useQuery, type InfiniteData } from "@tanstack/react-query";
 import {
   checkSession,
   createFolder,
   deleteObject,
   deletePrefix,
   getBuckets,
+  getBucketSize,
   getDownloadUrl,
   getObjects,
   getRuntimeConfig,
   login,
+  requestBucketSizeCalculation,
   logout,
   uploadFile,
 } from "./lib/api";
 import type {
+  BucketSizeResponse,
   FileEntry,
   FolderEntry,
+  ListObjectsResponse,
   UploadSelection,
   UploadSourceFile,
   UploadTask,
@@ -30,8 +34,29 @@ import { UploadDropzone } from "../components/UploadDropzone";
 
 type DeleteTarget = { type: "file"; key: string } | { type: "folder"; key: string } | null;
 type SelectedObject = FileEntry | FolderEntry;
+type ObjectsPageParam = { continuationToken?: string; maxKeys: number };
+type SortMode =
+  | "name-asc"
+  | "name-desc"
+  | "size-asc"
+  | "size-desc"
+  | "modified-asc"
+  | "modified-desc";
 
 const UPLOAD_CONCURRENCY = 3;
+const INITIAL_PAGE_SIZE = 100;
+
+const calculateNextPageSize = (loadedItems: number): number => {
+  if (loadedItems <= 100) {
+    return 250;
+  }
+
+  if (loadedItems < 500) {
+    return 500;
+  }
+
+  return 1000;
+};
 
 const normalizeRelativePath = (value: string): string => {
   return value
@@ -48,6 +73,17 @@ const splitPathSegments = (value: string): string[] => {
     .filter(Boolean);
 };
 
+const buildPromptedFolderKey = (bucket: string, key: string): string => `${bucket}::${key}`;
+
+const parseModifiedTime = (lastModified?: string): number => {
+  if (!lastModified) {
+    return 0;
+  }
+
+  const rawTime = new Date(lastModified).getTime();
+  return Number.isNaN(rawTime) ? 0 : rawTime;
+};
+
 export const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
@@ -56,13 +92,26 @@ export const App = () => {
   const [currentPrefix, setCurrentPrefix] = useState("");
   const [selectedObject, setSelectedObject] = useState<SelectedObject | null>(null);
   const [filter, setFilter] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [isSearchDebouncing, setIsSearchDebouncing] = useState(false);
+  const [sortMode, setSortMode] = useState<SortMode>("name-asc");
+  const [isSorting, setIsSorting] = useState(false);
+  const [folderLoadLimit, setFolderLoadLimit] = useState<number | null>(null);
+  const [pendingLargeFolderKey, setPendingLargeFolderKey] = useState<string | null>(null);
   const [autoLoadOnScroll, setAutoLoadOnScroll] = useState(true);
   const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([]);
   const [isUploadingBatch, setIsUploadingBatch] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
-  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const prefetchInFlightRef = useRef(false);
+  const promptedFolderKeysRef = useRef<Set<string>>(new Set());
+  const promptedFolderLoadLimitsRef = useRef<Map<string, number | null>>(new Map());
+  const requestedBucketSizeBucketsRef = useRef<Set<string>>(new Set());
+  const tableScrollPositionsRef = useRef<Map<string, number>>(new Map());
+  const scrollPersistTimeoutRef = useRef<number | null>(null);
+  const lastScrollTopRef = useRef<number | null>(null);
+  const lastScrollKeyRef = useRef<string | null>(null);
   const uploadSourceMapRef = useRef<Map<string, UploadSourceFile>>(new Map());
   const uploadAbortMapRef = useRef<Map<string, () => void>>(new Map());
   const canceledUploadTaskIdsRef = useRef<Set<string>>(new Set());
@@ -109,15 +158,97 @@ export const App = () => {
     }
   }, [bucketsQuery.data, selectedBucket]);
 
-  const objectsQuery = useInfiniteQuery({
-    queryKey: ["objects", selectedBucket, currentPrefix],
+  const bucketSizeQuery = useQuery({
+    queryKey: ["bucket-size", selectedBucket],
+    queryFn: async (): Promise<BucketSizeResponse | null> => {
+      if (!selectedBucket) {
+        return null;
+      }
+
+      const size = await getBucketSize(selectedBucket);
+
+      if (size) {
+        return size;
+      }
+
+      if (!requestedBucketSizeBucketsRef.current.has(selectedBucket)) {
+        requestedBucketSizeBucketsRef.current.add(selectedBucket);
+        await requestBucketSizeCalculation(selectedBucket).catch(() => undefined);
+      }
+
+      return null;
+    },
+    enabled: isAuthenticated && Boolean(selectedBucket),
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: (query) => {
+      const data = query.state.data as BucketSizeResponse | null | undefined;
+
+      if (!selectedBucket || data) {
+        return false;
+      }
+
+      return requestedBucketSizeBucketsRef.current.has(selectedBucket) ? 15_000 : false;
+    },
+  });
+
+  const isBucketSizeKnown = bucketSizeQuery.data !== null;
+  const isBucketSizeUnknown =
+    !isBucketSizeKnown &&
+    Boolean(selectedBucket) &&
+    requestedBucketSizeBucketsRef.current.has(selectedBucket);
+  const isLargeBucket = isBucketSizeKnown
+    ? (bucketSizeQuery.data?.objectCount ?? 0) >= 10_000
+    : false;
+  const shouldShowLargeFolderPrompt = isLargeBucket || isBucketSizeUnknown;
+
+  const objectsQuery = useInfiniteQuery<
+    ListObjectsResponse,
+    Error,
+    InfiniteData<ListObjectsResponse>,
+    [string, string, string, number],
+    ObjectsPageParam
+  >({
+    queryKey: ["objects", selectedBucket, currentPrefix, folderLoadLimit ?? 0],
     queryFn: ({ pageParam }) =>
       getObjects(selectedBucket, currentPrefix, {
-        continuationToken: pageParam || undefined,
-        maxKeys: 200,
+        continuationToken: pageParam.continuationToken,
+        maxKeys: pageParam.maxKeys,
       }),
-    initialPageParam: "",
-    getNextPageParam: (lastPage) => lastPage.nextContinuationToken ?? undefined,
+    initialPageParam: {
+      continuationToken: undefined,
+      maxKeys:
+        folderLoadLimit !== null
+          ? Math.min(INITIAL_PAGE_SIZE, Math.max(1, folderLoadLimit))
+          : INITIAL_PAGE_SIZE,
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage.nextContinuationToken) {
+        return undefined;
+      }
+
+      const loadedItems = allPages.reduce(
+        (sum, page) => sum + page.folders.length + page.files.length,
+        0,
+      );
+      const remainingItems =
+        folderLoadLimit !== null
+          ? Math.max(0, folderLoadLimit - loadedItems)
+          : Number.POSITIVE_INFINITY;
+
+      if (remainingItems <= 0) {
+        return undefined;
+      }
+
+      const nextMaxKeys = Math.min(calculateNextPageSize(loadedItems), remainingItems);
+
+      return {
+        continuationToken: lastPage.nextContinuationToken,
+        maxKeys: Math.max(1, nextMaxKeys),
+      };
+    },
     enabled: isAuthenticated && Boolean(selectedBucket),
   });
 
@@ -156,44 +287,222 @@ export const App = () => {
   }, [objectsQuery.data]);
 
   const canLoadMore = Boolean(objectsData?.isTruncated && objectsQuery.hasNextPage);
+  const tableStateKey = `${selectedBucket}::${currentPrefix}`;
+  const loadedObjectCount = (objectsData?.folders.length ?? 0) + (objectsData?.files.length ?? 0);
+  const sortTier =
+    loadedObjectCount < 1_000 ? "small" : loadedObjectCount < 10_000 ? "medium" : "large";
+  const nonNativeSortDisabled = sortTier === "large";
+  const loadedObjectsLabel = objectsData
+    ? objectsData.isTruncated
+      ? `Loaded ${loadedObjectCount.toLocaleString()}+ objects`
+      : `Loaded ${loadedObjectCount.toLocaleString()} objects`
+    : null;
+  const searchLimitWarning =
+    loadedObjectCount >= 10_000 && filter
+      ? "Search is limited to currently loaded items. For better results, navigate by folder prefix."
+      : null;
+  const sortWarning =
+    nonNativeSortDisabled && sortMode !== "name-asc"
+      ? "Large folder mode: size/date sorting is disabled for performance."
+      : null;
+  const folderHealthLabel = isLargeBucket
+    ? `Large bucket: ~${(bucketSizeQuery.data?.objectCount ?? 0).toLocaleString()} objects`
+    : isBucketSizeUnknown
+      ? "Bucket size is being calculated. Large-folder warnings stay enabled until ready."
+      : null;
 
   useEffect(() => {
-    if (!autoLoadOnScroll || !canLoadMore || objectsQuery.isFetchingNextPage) {
+    if (searchInput === filter) {
+      setIsSearchDebouncing(false);
       return;
     }
 
-    const target = loadMoreSentinelRef.current;
-
-    if (!target) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-
-        if (entry?.isIntersecting && objectsQuery.hasNextPage && !objectsQuery.isFetchingNextPage) {
-          void objectsQuery.fetchNextPage();
-        }
-      },
-      {
-        root: null,
-        rootMargin: "220px 0px",
-      },
-    );
-
-    observer.observe(target);
+    setIsSearchDebouncing(true);
+    const timeoutId = window.setTimeout(() => {
+      setFilter(searchInput);
+      setIsSearchDebouncing(false);
+    }, 300);
 
     return () => {
-      observer.disconnect();
+      window.clearTimeout(timeoutId);
     };
-  }, [
-    autoLoadOnScroll,
-    canLoadMore,
-    objectsQuery.fetchNextPage,
-    objectsQuery.hasNextPage,
-    objectsQuery.isFetchingNextPage,
-  ]);
+  }, [filter, searchInput]);
+
+  useEffect(() => {
+    if (sortTier === "medium" && sortMode !== "name-asc") {
+      setIsSorting(true);
+      const timeoutId = window.setTimeout(() => {
+        setIsSorting(false);
+      }, 220);
+
+      return () => {
+        window.clearTimeout(timeoutId);
+      };
+    }
+
+    setIsSorting(false);
+  }, [sortMode, sortTier]);
+
+  const clearSearch = useCallback(() => {
+    setSearchInput("");
+    setFilter("");
+    setIsSearchDebouncing(false);
+  }, []);
+
+  const sortedObjects = useMemo(() => {
+    if (!objectsData) {
+      return null;
+    }
+
+    const folders = [...objectsData.folders];
+    const files = [...objectsData.files];
+
+    if (sortMode === "name-asc") {
+      return { folders, files };
+    }
+
+    if (sortMode === "name-desc") {
+      folders.reverse();
+      files.reverse();
+      return { folders, files };
+    }
+
+    if (nonNativeSortDisabled) {
+      return { folders, files };
+    }
+
+    if (sortMode === "size-asc") {
+      files.sort((a, b) => a.size - b.size || a.name.localeCompare(b.name));
+    } else if (sortMode === "size-desc") {
+      files.sort((a, b) => b.size - a.size || a.name.localeCompare(b.name));
+    } else if (sortMode === "modified-asc") {
+      files.sort((a, b) => {
+        const timeA = parseModifiedTime(a.lastModified);
+        const timeB = parseModifiedTime(b.lastModified);
+        return timeA - timeB || a.name.localeCompare(b.name);
+      });
+    } else if (sortMode === "modified-desc") {
+      files.sort((a, b) => {
+        const timeA = parseModifiedTime(a.lastModified);
+        const timeB = parseModifiedTime(b.lastModified);
+        return timeB - timeA || a.name.localeCompare(b.name);
+      });
+    }
+
+    folders.sort((a, b) => a.name.localeCompare(b.name));
+    return { folders, files };
+  }, [nonNativeSortDisabled, objectsData, sortMode]);
+
+  const saveScrollPosition = useCallback(
+    (scrollTop: number) => {
+      const key = `${selectedBucket}::${currentPrefix}`;
+      tableScrollPositionsRef.current.set(key, scrollTop);
+      lastScrollTopRef.current = scrollTop;
+      lastScrollKeyRef.current = key;
+
+      if (scrollPersistTimeoutRef.current !== null) {
+        return;
+      }
+
+      scrollPersistTimeoutRef.current = window.setTimeout(() => {
+        scrollPersistTimeoutRef.current = null;
+        const latestKey = lastScrollKeyRef.current;
+        const latestValue = lastScrollTopRef.current;
+
+        if (!latestKey || typeof latestValue !== "number") {
+          return;
+        }
+
+        window.sessionStorage.setItem(`object-scroll:${latestKey}`, String(latestValue));
+      }, 100);
+    },
+    [currentPrefix, selectedBucket],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (scrollPersistTimeoutRef.current !== null) {
+        window.clearTimeout(scrollPersistTimeoutRef.current);
+        scrollPersistTimeoutRef.current = null;
+      }
+
+      const latestKey = lastScrollKeyRef.current;
+      const latestValue = lastScrollTopRef.current;
+
+      if (latestKey && typeof latestValue === "number") {
+        window.sessionStorage.setItem(`object-scroll:${latestKey}`, String(latestValue));
+      }
+    };
+  }, []);
+
+  const loadSavedScrollPosition = useCallback((key: string): number => {
+    const inMemory = tableScrollPositionsRef.current.get(key);
+
+    if (typeof inMemory === "number") {
+      return inMemory;
+    }
+
+    const rawValue = window.sessionStorage.getItem(`object-scroll:${key}`);
+
+    if (!rawValue) {
+      return 0;
+    }
+
+    const parsed = Number(rawValue);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, []);
+  const restoredScrollTop = useMemo(
+    () => loadSavedScrollPosition(tableStateKey),
+    [loadSavedScrollPosition, tableStateKey],
+  );
+
+  const handleTableScrollProgress = useCallback(
+    (progress: number) => {
+      if (
+        !autoLoadOnScroll ||
+        progress < 0.8 ||
+        !canLoadMore ||
+        objectsQuery.isFetchingNextPage ||
+        prefetchInFlightRef.current
+      ) {
+        return;
+      }
+
+      prefetchInFlightRef.current = true;
+      void objectsQuery.fetchNextPage().finally(() => {
+        prefetchInFlightRef.current = false;
+      });
+    },
+    [autoLoadOnScroll, canLoadMore, objectsQuery],
+  );
+
+  const navigateToPrefix = useCallback(
+    (prefix: string) => {
+      setCurrentPrefix(prefix);
+      clearSearch();
+      setSelectedObject(null);
+    },
+    [clearSearch],
+  );
+
+  const handleOpenFolder = useCallback(
+    (key: string) => {
+      const promptedKey = buildPromptedFolderKey(selectedBucket, key);
+
+      if (shouldShowLargeFolderPrompt && !promptedFolderKeysRef.current.has(promptedKey)) {
+        setPendingLargeFolderKey(key);
+        return;
+      }
+
+      if (promptedFolderKeysRef.current.has(promptedKey)) {
+        const storedLimit = promptedFolderLoadLimitsRef.current.get(promptedKey);
+        setFolderLoadLimit(typeof storedLimit === "undefined" ? null : storedLimit);
+      }
+
+      navigateToPrefix(key);
+    },
+    [navigateToPrefix, selectedBucket, shouldShowLargeFolderPrompt],
+  );
 
   const loginMutation = useMutation({
     mutationFn: ({
@@ -218,6 +527,7 @@ export const App = () => {
       setIsAuthenticated(false);
       setSelectedBucket("");
       setCurrentPrefix("");
+      clearSearch();
       setSelectedObject(null);
     },
   });
@@ -501,6 +811,7 @@ export const App = () => {
     },
     onSuccess: (response) => {
       setCurrentPrefix(response.key);
+      clearSearch();
       setSelectedObject(null);
       setCreateFolderOpen(false);
       void handleRefresh();
@@ -511,12 +822,16 @@ export const App = () => {
   });
 
   const statusText = useMemo(() => {
-    if (objectsQuery.isLoading) {
-      return "Loading objects...";
+    if (isSearchDebouncing) {
+      return "Preparing search...";
+    }
+
+    if (isSorting) {
+      return "Sorting objects...";
     }
 
     return null;
-  }, [objectsQuery.isLoading]);
+  }, [isSearchDebouncing, isSorting]);
 
   const objectsErrorMessage = useMemo(() => {
     if (!objectsQuery.isError) {
@@ -597,6 +912,8 @@ export const App = () => {
               onClick={() => {
                 setSelectedBucket(bucket);
                 setCurrentPrefix("");
+                setFolderLoadLimit(null);
+                clearSearch();
                 setSelectedObject(null);
               }}
             >
@@ -617,10 +934,13 @@ export const App = () => {
               bucket={selectedBucket}
               prefix={currentPrefix}
               onNavigate={(prefix) => {
-                setCurrentPrefix(prefix);
-                setSelectedObject(null);
+                setFolderLoadLimit(null);
+                navigateToPrefix(prefix);
               }}
             />
+            {folderHealthLabel ? (
+              <p className="toolbar-note warning-text">{folderHealthLabel}</p>
+            ) : null}
           </div>
           <div className="toolbar-actions">
             <label className="auto-load-toggle">
@@ -640,10 +960,37 @@ export const App = () => {
             </button>
             <input
               type="search"
-              value={filter}
+              value={searchInput}
               placeholder="Filter by name"
-              onChange={(event) => setFilter(event.target.value)}
+              onChange={(event) => setSearchInput(event.target.value)}
             />
+            <select
+              value={sortMode}
+              onChange={(event) => {
+                const nextSort = event.target.value as SortMode;
+                if (nonNativeSortDisabled && nextSort !== "name-asc") {
+                  setSortMode("name-asc");
+                  return;
+                }
+
+                setSortMode(nextSort);
+              }}
+            >
+              <option value="name-asc">Name (A-Z, S3 native)</option>
+              <option value="name-desc">Name (Z-A)</option>
+              <option value="size-asc" disabled={nonNativeSortDisabled}>
+                Size (smallest first)
+              </option>
+              <option value="size-desc" disabled={nonNativeSortDisabled}>
+                Size (largest first)
+              </option>
+              <option value="modified-asc" disabled={nonNativeSortDisabled}>
+                Modified (oldest first)
+              </option>
+              <option value="modified-desc" disabled={nonNativeSortDisabled}>
+                Modified (newest first)
+              </option>
+            </select>
             <button type="button" onClick={() => void handleRefresh()}>
               Refresh
             </button>
@@ -717,24 +1064,49 @@ export const App = () => {
             </div>
           ) : null}
 
-          {!statusText && !objectsErrorMessage && objectsData ? (
-            <ObjectTable
-              folders={objectsData.folders}
-              files={objectsData.files}
-              filter={filter}
-              enableS3UriCopy={runtimeConfigQuery.data?.features?.enableS3UriCopy ?? false}
-              onOpenFolder={(key) => {
-                setCurrentPrefix(key);
-                setSelectedObject(null);
-              }}
-              onSelectFolder={(folder) => setSelectedObject(folder)}
-              onSelectFile={(file) => setSelectedObject(file)}
-              onDeleteFolder={(key) => setDeleteTarget({ type: "folder", key })}
-              onDeleteFile={(key) => setDeleteTarget({ type: "file", key })}
-              onDownloadFile={(key) => {
-                window.open(getDownloadUrl(selectedBucket, key), "_blank");
-              }}
-            />
+          {!objectsErrorMessage && (objectsData || objectsQuery.isLoading) ? (
+            <>
+              <ObjectTable
+                folders={sortedObjects?.folders ?? []}
+                files={sortedObjects?.files ?? []}
+                filter={filter}
+                loadingMore={objectsQuery.isFetchingNextPage}
+                scrollStateKey={tableStateKey}
+                initialScrollTop={restoredScrollTop}
+                isInitialLoading={objectsQuery.isLoading}
+                enableS3UriCopy={runtimeConfigQuery.data?.features?.enableS3UriCopy ?? false}
+                onScrollProgress={handleTableScrollProgress}
+                onScrollPositionChange={saveScrollPosition}
+                onOpenFolder={handleOpenFolder}
+                onSelectFolder={(folder) => setSelectedObject(folder)}
+                onSelectFile={(file) => setSelectedObject(file)}
+                onDeleteFolder={(key) => setDeleteTarget({ type: "folder", key })}
+                onDeleteFile={(key) => setDeleteTarget({ type: "file", key })}
+                onDownloadFile={(key) => {
+                  window.open(getDownloadUrl(selectedBucket, key), "_blank");
+                }}
+              />
+              {loadedObjectsLabel ? (
+                <div className="table-progress" aria-live="polite">
+                  {loadedObjectsLabel}
+                </div>
+              ) : null}
+              {searchLimitWarning ? (
+                <div className="table-progress warning-text" role="status">
+                  {searchLimitWarning}
+                </div>
+              ) : null}
+              {sortWarning ? (
+                <div className="table-progress warning-text" role="status">
+                  {sortWarning}
+                </div>
+              ) : null}
+              {folderLoadLimit !== null ? (
+                <div className="table-progress" role="status">
+                  Limited mode active: loading first {folderLoadLimit.toLocaleString()} objects.
+                </div>
+              ) : null}
+            </>
           ) : null}
 
           {!statusText && !objectsErrorMessage && canLoadMore ? (
@@ -748,11 +1120,7 @@ export const App = () => {
                   {objectsQuery.isFetchingNextPage ? "Loading more..." : "Load more"}
                 </button>
               </div>
-              <div
-                ref={loadMoreSentinelRef}
-                className="table-pagination-sentinel"
-                aria-hidden="true"
-              />
+              <div className="table-pagination-sentinel" aria-hidden="true" />
             </>
           ) : null}
 
@@ -776,6 +1144,56 @@ export const App = () => {
           enableS3UriCopy={runtimeConfigQuery.data?.features?.enableS3UriCopy ?? false}
         />
       </section>
+
+      {pendingLargeFolderKey ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-card">
+            <h3>Large folder warning</h3>
+            <p>
+              This bucket is estimated at{" "}
+              {(bucketSizeQuery.data?.objectCount ?? loadedObjectCount).toLocaleString()} objects.
+              Loading all objects may be slow.
+            </p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  const promptedKey = buildPromptedFolderKey(selectedBucket, pendingLargeFolderKey);
+                  promptedFolderKeysRef.current.add(promptedKey);
+                  promptedFolderLoadLimitsRef.current.set(promptedKey, 1000);
+                  setFolderLoadLimit(1000);
+                  navigateToPrefix(pendingLargeFolderKey);
+                  setPendingLargeFolderKey(null);
+                }}
+              >
+                Load first 1,000
+              </button>
+              <button
+                type="button"
+                className="danger"
+                onClick={() => {
+                  const promptedKey = buildPromptedFolderKey(selectedBucket, pendingLargeFolderKey);
+                  promptedFolderKeysRef.current.add(promptedKey);
+                  promptedFolderLoadLimitsRef.current.set(promptedKey, null);
+                  setFolderLoadLimit(null);
+                  navigateToPrefix(pendingLargeFolderKey);
+                  setPendingLargeFolderKey(null);
+                }}
+              >
+                Load all
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingLargeFolderKey(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {deleteTarget ? (
         <ConfirmDialog

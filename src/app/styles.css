@@ -79,6 +79,10 @@ input {
   font: inherit;
 }
 
+select {
+  font: inherit;
+}
+
 button {
   cursor: pointer;
   border: none;
@@ -223,6 +227,19 @@ button:disabled {
   color: inherit;
 }
 
+.toolbar-actions select {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  background: var(--panel-soft-bg);
+  color: inherit;
+}
+
+.toolbar-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+}
+
 .breadcrumbs {
   display: flex;
   flex-wrap: wrap;
@@ -331,12 +348,16 @@ button:disabled {
 .content-panel {
   position: relative;
   min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .object-table-wrap {
   overflow: auto;
   border: 1px solid var(--table-row-border);
   border-radius: 0.85rem;
+  height: clamp(260px, 62vh, 900px);
 }
 
 .object-table {
@@ -381,6 +402,52 @@ button:disabled {
 .table-actions {
   display: flex;
   gap: 0.35rem;
+}
+
+.object-table-loading-more {
+  margin-top: 0.5rem;
+  color: var(--muted-text);
+  font-size: 0.9rem;
+}
+
+.table-progress {
+  color: var(--muted-text);
+  font-size: 0.88rem;
+}
+
+.warning-text {
+  color: var(--error-border);
+}
+
+.skeleton-cell {
+  display: inline-block;
+  height: 0.9rem;
+  border-radius: 0.4rem;
+  background: color-mix(in oklab, var(--muted-text) 20%, transparent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.skeleton-name {
+  width: min(100%, 16rem);
+}
+
+.skeleton-short {
+  width: 4.5rem;
+}
+
+.skeleton-medium {
+  width: 7rem;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+
+  50% {
+    opacity: 0.85;
+  }
 }
 
 .preview-column {

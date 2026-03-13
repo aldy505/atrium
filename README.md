@@ -253,10 +253,15 @@ pnpm start
 - Optional diagnostics header `X-Atrium-S3-List-Cache` reports `HIT`, `MISS`, or `BYPASS` when `S3_LIST_CACHE_INCLUDE_HEADERS=true`.
 - Optional background bucket-size calculation can be enabled with OpenFeature flag `enable-background-bucket-size-calculation`.
 - Bucket-size API routes (feature-gated): `GET /api/s3/buckets/:bucketName/size` and `POST /api/s3/buckets/:bucketName/size/calculate`.
-- Frontend requests objects in pages of `200` and merges pages in memory.
-- The object table supports:
-  - Manual pagination with **Load more**
-  - Optional **Auto-load on scroll** (IntersectionObserver)
+- Frontend starts with page size `100`, then grows adaptively (`250` → `500` → `1000`) as more objects are loaded.
+- The object table uses virtualized rendering (`@tanstack/react-virtual`) so only visible rows are mounted.
+- Auto-load prefetch triggers near 80% scroll progress; manual **Load more** remains available.
+- Search input is debounced by `300ms`; very large folders show a warning that search is limited to loaded items.
+- For large buckets, the UI shows a warning dialog before entering folders and offers **Load first 1,000** mode.
+- Sort behavior is tiered:
+  - `<1k`: full client-side sort options
+  - `1k-10k`: client-side sort with transient sorting indicator
+  - `>10k`: non-native size/date sorts are disabled (name A-Z uses S3 native ordering)
 - For stress testing, this repository has been validated with a generated dataset of `5000` objects in MinIO.
 
 ### Bucket Size Calculation Cost Notes
