@@ -165,10 +165,18 @@ export const App = () => {
       syncSmallScreenPreview(event.matches);
     };
 
-    mediaQuery.addEventListener("change", handleChange);
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+    } else {
+      mediaQuery.addListener(handleChange);
+    }
 
     return () => {
-      mediaQuery.removeEventListener("change", handleChange);
+      if (typeof mediaQuery.removeEventListener === "function") {
+        mediaQuery.removeEventListener("change", handleChange);
+      } else {
+        mediaQuery.removeListener(handleChange);
+      }
     };
   }, []);
 
@@ -1002,7 +1010,7 @@ export const App = () => {
                 className="preview-toggle"
                 onClick={() => setIsSmallScreenPreviewOpen((current) => !current)}
                 disabled={!selectedObject}
-                aria-controls="object-preview"
+                aria-controls={isPreviewVisible ? "object-preview" : undefined}
                 aria-expanded={isPreviewVisible}
               >
                 {isPreviewVisible ? "Hide preview" : "Show preview"}
