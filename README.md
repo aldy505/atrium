@@ -30,6 +30,7 @@ Atrium is a self-hosted web app for browsing and managing S3-compatible object s
 - File preview for:
   - Images: `jpg`, `jpeg`, `png`, `gif`, `webp`, `svg`
   - Text: `txt`, `md`, `json`, `xml`, `csv`, `log`
+  - PDF: `pdf` via a larger PDF.js-based viewer with thumbnails, search, zoom, and download access
 - Client-side filtering of current folder entries by name
 
 ## Architecture

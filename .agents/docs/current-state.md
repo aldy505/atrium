@@ -19,6 +19,8 @@ Last updated: 2026-02-22
 - Runtime feature flags are exposed via `/api/runtime-config`.
 - `ENABLE_S3_URI_COPY` now gates a sidebar **Copy S3 URI** action (disabled by default).
 - Sidebar detail view now supports both file and folder selections.
+- PDF files can now open in a larger modal viewer powered by `pdfjs-viewer-element` / PDF.js, while metadata and tags remain in the sidebar.
+- Password-protected PDFs are handled on a best-effort basis via the embedded viewer; download remains available as a fallback.
 
 - Backend S3/auth metric instrumentation is in place.
 - Audit logging is in place with filesystem CSV or Loki sinks.
@@ -63,3 +65,4 @@ Last updated: 2026-02-22
    - `X-Atrium-S3-List-Cache: BYPASS` when cache disabled or unavailable
 5. Verify audit log output in filesystem or Loki based on `AUDIT_LOG_SINK`.
 6. Create a folder and confirm navigation enters the new prefix.
+7. Preview a multi-page PDF, verify zoom/search/thumbs in the viewer, and confirm download still works.

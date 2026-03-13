@@ -50,6 +50,9 @@ importers:
       mime-types:
         specifier: ^2.1.35
         version: 2.1.35
+      pdfjs-viewer-element:
+        specifier: ^3.2.0
+        version: 3.2.0
       toad-scheduler:
         specifier: ^3.1.0
         version: 3.1.0
@@ -2189,6 +2192,9 @@ packages:
 
   pathe@2.0.3:
     resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
+
+  pdfjs-viewer-element@3.2.0:
+    resolution: {integrity: sha512-yPbqly+ZrV4FYiyv3QVea4tGMytzsTrAXLrgr914Za5E4/I6cLPQ7IDtnp5J+ZN7sVfgdBs23+lbFsN/N0La9A==}
 
   pg-int8@1.0.1:
     resolution: {integrity: sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw==}
@@ -5032,6 +5038,8 @@ snapshots:
       minipass: 7.1.2
 
   pathe@2.0.3: {}
+
+  pdfjs-viewer-element@3.2.0: {}
 
   pg-int8@1.0.1: {}
 
