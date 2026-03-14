@@ -45,6 +45,7 @@ type SortMode =
 
 const UPLOAD_CONCURRENCY = 3;
 const INITIAL_PAGE_SIZE = 100;
+const SMALL_SCREEN_PREVIEW_BREAKPOINT = 900;
 
 const calculateNextPageSize = (loadedItems: number): number => {
   if (loadedItems <= 100) {
@@ -104,6 +105,16 @@ export const App = () => {
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  const [isSmallScreenPreview, setIsSmallScreenPreview] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return window.matchMedia(`(max-width: ${SMALL_SCREEN_PREVIEW_BREAKPOINT}px)`).matches;
+  });
+  const [isSmallScreenPreviewOpen, setIsSmallScreenPreviewOpen] = useState(false);
+  const previewToggleButtonRef = useRef<HTMLButtonElement | null>(null);
+  const shouldRestorePreviewToggleFocusRef = useRef(false);
   const prefetchInFlightRef = useRef(false);
   const promptedFolderKeysRef = useRef<Set<string>>(new Set());
   const promptedFolderLoadLimitsRef = useRef<Map<string, number | null>>(new Map());
@@ -139,6 +150,45 @@ export const App = () => {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia(`(max-width: ${SMALL_SCREEN_PREVIEW_BREAKPOINT}px)`);
+    const syncSmallScreenPreview = (matches: boolean) => {
+      setIsSmallScreenPreview(matches);
+    };
+
+    syncSmallScreenPreview(mediaQuery.matches);
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      syncSmallScreenPreview(event.matches);
+    };
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+    } else {
+      mediaQuery.addListener(handleChange);
+    }
+
+    return () => {
+      if (typeof mediaQuery.removeEventListener === "function") {
+        mediaQuery.removeEventListener("change", handleChange);
+      } else {
+        mediaQuery.removeListener(handleChange);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isSmallScreenPreview) {
+      return;
+    }
+
+    setIsSmallScreenPreviewOpen(Boolean(selectedObject));
+  }, [isSmallScreenPreview, selectedObject]);
 
   const bucketsQuery = useQuery({
     queryKey: ["buckets", isAuthenticated],
@@ -537,6 +587,33 @@ export const App = () => {
     await objectsQuery.refetch();
     await bucketsQuery.refetch();
   };
+
+  const handleSelectObject = useCallback(
+    (object: SelectedObject) => {
+      setSelectedObject(object);
+
+      if (isSmallScreenPreview) {
+        setIsSmallScreenPreviewOpen(true);
+      }
+    },
+    [isSmallScreenPreview],
+  );
+
+  const isPreviewVisible = !isSmallScreenPreview || isSmallScreenPreviewOpen;
+
+  useEffect(() => {
+    if (!isSmallScreenPreview || isPreviewVisible || !shouldRestorePreviewToggleFocusRef.current) {
+      return;
+    }
+
+    previewToggleButtonRef.current?.focus();
+    shouldRestorePreviewToggleFocusRef.current = false;
+  }, [isPreviewVisible, isSmallScreenPreview]);
+
+  const closeSmallScreenPreview = useCallback(() => {
+    shouldRestorePreviewToggleFocusRef.current = true;
+    setIsSmallScreenPreviewOpen(false);
+  }, []);
 
   const updateUploadTask = (taskId: string, updater: (task: UploadTask) => UploadTask): void => {
     setUploadTasks((prev) => prev.map((task) => (task.id === taskId ? updater(task) : task)));
@@ -943,6 +1020,19 @@ export const App = () => {
             ) : null}
           </div>
           <div className="toolbar-actions">
+            {isSmallScreenPreview ? (
+              <button
+                type="button"
+                className="preview-toggle"
+                ref={previewToggleButtonRef}
+                onClick={() => setIsSmallScreenPreviewOpen((current) => !current)}
+                disabled={!selectedObject}
+                aria-controls={isPreviewVisible ? "object-preview" : undefined}
+                aria-expanded={isPreviewVisible}
+              >
+                {isPreviewVisible ? "Hide preview" : "Show preview"}
+              </button>
+            ) : null}
             <label className="auto-load-toggle">
               <input
                 type="checkbox"
@@ -1078,8 +1168,8 @@ export const App = () => {
                 onScrollProgress={handleTableScrollProgress}
                 onScrollPositionChange={saveScrollPosition}
                 onOpenFolder={handleOpenFolder}
-                onSelectFolder={(folder) => setSelectedObject(folder)}
-                onSelectFile={(file) => setSelectedObject(file)}
+                onSelectFolder={handleSelectObject}
+                onSelectFile={handleSelectObject}
                 onDeleteFolder={(key) => setDeleteTarget({ type: "folder", key })}
                 onDeleteFile={(key) => setDeleteTarget({ type: "file", key })}
                 onDownloadFile={(key) => {
@@ -1137,13 +1227,28 @@ export const App = () => {
         </div>
       </main>
 
-      <section className="preview-column">
-        <FilePreview
-          bucket={selectedBucket}
-          file={selectedObject}
-          enableS3UriCopy={runtimeConfigQuery.data?.features?.enableS3UriCopy ?? false}
-        />
-      </section>
+      {isPreviewVisible ? (
+        <section
+          id="object-preview"
+          className={
+            isSmallScreenPreview ? "preview-column preview-column-mobile" : "preview-column"
+          }
+        >
+          {isSmallScreenPreview ? (
+            <div className="preview-mobile-header">
+              <h2>Preview</h2>
+              <button type="button" onClick={closeSmallScreenPreview}>
+                Hide preview
+              </button>
+            </div>
+          ) : null}
+          <FilePreview
+            bucket={selectedBucket}
+            file={selectedObject}
+            enableS3UriCopy={runtimeConfigQuery.data?.features?.enableS3UriCopy ?? false}
+          />
+        </section>
+      ) : null}
 
       {pendingLargeFolderKey ? (
         <div className="modal-overlay" role="dialog" aria-modal="true">
