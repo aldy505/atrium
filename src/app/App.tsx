@@ -113,6 +113,8 @@ export const App = () => {
     return window.matchMedia(`(max-width: ${SMALL_SCREEN_PREVIEW_BREAKPOINT}px)`).matches;
   });
   const [isSmallScreenPreviewOpen, setIsSmallScreenPreviewOpen] = useState(false);
+  const previewToggleButtonRef = useRef<HTMLButtonElement | null>(null);
+  const shouldRestorePreviewToggleFocusRef = useRef(false);
   const prefetchInFlightRef = useRef(false);
   const promptedFolderKeysRef = useRef<Set<string>>(new Set());
   const promptedFolderLoadLimitsRef = useRef<Map<string, number | null>>(new Map());
@@ -599,6 +601,20 @@ export const App = () => {
 
   const isPreviewVisible = !isSmallScreenPreview || isSmallScreenPreviewOpen;
 
+  useEffect(() => {
+    if (!isSmallScreenPreview || isPreviewVisible || !shouldRestorePreviewToggleFocusRef.current) {
+      return;
+    }
+
+    previewToggleButtonRef.current?.focus();
+    shouldRestorePreviewToggleFocusRef.current = false;
+  }, [isPreviewVisible, isSmallScreenPreview]);
+
+  const closeSmallScreenPreview = useCallback(() => {
+    shouldRestorePreviewToggleFocusRef.current = true;
+    setIsSmallScreenPreviewOpen(false);
+  }, []);
+
   const updateUploadTask = (taskId: string, updater: (task: UploadTask) => UploadTask): void => {
     setUploadTasks((prev) => prev.map((task) => (task.id === taskId ? updater(task) : task)));
   };
@@ -1008,6 +1024,7 @@ export const App = () => {
               <button
                 type="button"
                 className="preview-toggle"
+                ref={previewToggleButtonRef}
                 onClick={() => setIsSmallScreenPreviewOpen((current) => !current)}
                 disabled={!selectedObject}
                 aria-controls={isPreviewVisible ? "object-preview" : undefined}
@@ -1220,7 +1237,7 @@ export const App = () => {
           {isSmallScreenPreview ? (
             <div className="preview-mobile-header">
               <h2>Preview</h2>
-              <button type="button" onClick={() => setIsSmallScreenPreviewOpen(false)}>
+              <button type="button" onClick={closeSmallScreenPreview}>
                 Hide preview
               </button>
             </div>
