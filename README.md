@@ -87,6 +87,7 @@ artifacts from the [latest GitHub Actions run](https://github.com/aldy505/atrium
 3. Run it using Node.js (`node --import ./dist/server/sentry.server.js ./dist/server/index.js`)
 
 I recommend running this using systemd, with a sample minimal service file of:
+
 ```ini
 [Unit]
 Description=Atrium
