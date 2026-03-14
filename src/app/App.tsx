@@ -104,6 +104,8 @@ export const App = () => {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const previewToggleButtonRef = useRef<HTMLButtonElement | null>(null);
+  const shouldRestorePreviewToggleFocusRef = useRef(false);
   const prefetchInFlightRef = useRef(false);
   const promptedFolderKeysRef = useRef<Set<string>>(new Set());
   const promptedFolderLoadLimitsRef = useRef<Map<string, number | null>>(new Map());
@@ -546,6 +548,19 @@ export const App = () => {
   }, []);
 
   const isPreviewVisible = isPreviewOpen && Boolean(selectedObject);
+  const closePreview = useCallback(() => {
+    shouldRestorePreviewToggleFocusRef.current = true;
+    setIsPreviewOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (isPreviewVisible || !shouldRestorePreviewToggleFocusRef.current) {
+      return;
+    }
+
+    previewToggleButtonRef.current?.focus();
+    shouldRestorePreviewToggleFocusRef.current = false;
+  }, [isPreviewVisible]);
 
   const updateUploadTask = (taskId: string, updater: (task: UploadTask) => UploadTask): void => {
     setUploadTasks((prev) => prev.map((task) => (task.id === taskId ? updater(task) : task)));
@@ -956,9 +971,10 @@ export const App = () => {
             <button
               type="button"
               className="preview-toggle"
+              ref={previewToggleButtonRef}
               onClick={() => {
                 if (isPreviewVisible) {
-                  setIsPreviewOpen(false);
+                  closePreview();
                   return;
                 }
 
@@ -1168,7 +1184,7 @@ export const App = () => {
         <section id="object-preview" className="preview-column">
           <div className="preview-column-header">
             <h2>Preview</h2>
-            <button type="button" onClick={() => setIsPreviewOpen(false)}>
+            <button type="button" onClick={closePreview}>
               Collapse
             </button>
           </div>
