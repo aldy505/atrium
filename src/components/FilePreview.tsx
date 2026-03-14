@@ -15,7 +15,8 @@ import {
 } from "../app/lib/api";
 import { buildS3Uri, copyTextToClipboard } from "../app/lib/s3-uri";
 import type { FileEntry, ObjectTag } from "../app/lib/types";
-import { getExtension, isImageFile, isPdfFile, isTextFile } from "./FileIcon";
+import { getExtension } from "./FileIcon";
+import { getPreviewKind, getPreviewPresentation } from "./preview-mode";
 
 hljs.registerLanguage("json", json);
 hljs.registerLanguage("xml", xml);
@@ -55,14 +56,6 @@ const getLanguage = (filename: string): string => {
     default:
       return "plaintext";
   }
-};
-
-const isPdfContentType = (contentType?: string): boolean => {
-  if (!contentType) {
-    return false;
-  }
-
-  return contentType.split(";")[0]?.trim().toLowerCase() === "application/pdf";
 };
 
 const RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -253,11 +246,18 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
     staleTime: 60_000,
   });
 
+  const metadata = metadataQuery.data;
+  const metadataSize = metadata?.size ?? fileEntry?.size;
+  const metadataLastModified = metadata?.lastModified ?? fileEntry?.lastModified;
+  const metadataContentType = metadata?.contentType ?? fileEntry?.contentType;
+  const previewKind = fileEntry ? getPreviewKind(fileEntry.name, metadataContentType) : "generic";
+  const previewPresentation = getPreviewPresentation(previewKind);
+
   useEffect(() => {
     let isMounted = true;
 
     const run = async () => {
-      if (!fileEntry || !isTextFile(fileEntry.name)) {
+      if (!fileEntry || previewKind !== "text") {
         setTextContent("");
         setError(null);
         return;
@@ -287,7 +287,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
     return () => {
       isMounted = false;
     };
-  }, [bucket, fileEntry]);
+  }, [bucket, fileEntry, previewKind]);
 
   useEffect(() => {
     if (copyStatus !== "copied") {
@@ -342,14 +342,6 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
     const language = getLanguage(fileEntry.name);
     return hljs.highlight(textContent, { language }).value;
   }, [fileEntry, textContent]);
-
-  const metadata = metadataQuery.data;
-  const metadataSize = metadata?.size ?? fileEntry?.size;
-  const metadataLastModified = metadata?.lastModified ?? fileEntry?.lastModified;
-  const metadataContentType = metadata?.contentType ?? fileEntry?.contentType;
-  const isPdfPreviewable = Boolean(
-    fileEntry && (isPdfFile(fileEntry.name) || isPdfContentType(metadataContentType)),
-  );
   const hasLoadedTags = tagsQuery.status === "success";
   const isTagsLoading = tagsQuery.isPending || (tagsQuery.isFetching && !hasLoadedTags);
   const isTaggingSupported = hasLoadedTags && Boolean(tagsQuery.data?.isSupported);
@@ -363,8 +355,8 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
     isTaggingSupported && !isSavingTags && !isTagsLoading && tagsChanged && !tagValidationError;
 
   useEffect(() => {
-    setIsPdfModalOpen(Boolean(fileEntry && isPdfPreviewable));
-  }, [fileEntry?.key, isPdfPreviewable]);
+    setIsPdfModalOpen(false);
+  }, [fileEntry?.key]);
 
   if (!file) {
     return (
@@ -524,7 +516,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
     </section>
   ) : null;
 
-  if (isImageFile(file.name)) {
+  if (previewKind === "image") {
     return (
       <div className="preview-panel">
         <h3>{file.name}</h3>
@@ -544,7 +536,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
     );
   }
 
-  if (isTextFile(file.name)) {
+  if (previewKind === "text") {
     return (
       <div className="preview-panel">
         <h3>{file.name}</h3>
@@ -575,7 +567,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
     );
   }
 
-  if (isPdfPreviewable && fileEntry) {
+  if (previewPresentation === "modal-trigger" && fileEntry) {
     return (
       <>
         <div className="preview-panel">
@@ -589,8 +581,8 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
           {tagsSection}
           <div className="status-banner preview-pdf-card">
             <p>
-              PDF preview opens in a larger viewer so page navigation, thumbnails, search, and zoom
-              remain usable.
+              Open the PDF in a larger viewer when you need full-width reading with page navigation,
+              thumbnails, search, and zoom.
             </p>
             <div className="preview-pdf-actions">
               <button
@@ -599,7 +591,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
                   setIsPdfModalOpen(true);
                 }}
               >
-                Open preview
+                Open PDF viewer
               </button>
               <button
                 type="button"

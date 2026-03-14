@@ -1063,12 +1063,12 @@ input:focus-visible {
 }
 
 .pdf-preview-dialog {
-  width: min(1200px, 96vw);
-  height: min(92vh, 960px);
+  width: min(1600px, calc(100vw - 2rem));
+  height: min(96vh, 1200px);
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  padding: 1rem;
+  padding: 1.1rem;
 }
 
 .pdf-preview-header {
@@ -1153,9 +1153,9 @@ input:focus-visible {
   }
 
   .pdf-preview-dialog {
-    width: 100%;
+    width: calc(100vw - 1rem);
     height: calc(100vh - 1rem);
-    padding: 0.85rem;
+    padding: 0.8rem;
   }
 
   .pdf-preview-header {
