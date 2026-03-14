@@ -86,7 +86,7 @@ artifacts from the [latest GitHub Actions run](https://github.com/aldy505/atrium
 2. Extract the archive (`unzip atrium-{platform}-{sha}.zip`)
 3. Run it using Node.js (`node --import ./dist/server/sentry.server.js ./dist/server/index.js`)
 
-I recommend running this using systemd, with a sample minimal service file of:
+I recommend running this using systemd, with a sample minimal service file of (assuming Node.js is installed at `/usr/bin/node`; adjust `ExecStart` if your installation differs):
 
 ```ini
 [Unit]
@@ -98,8 +98,7 @@ Type=simple
 User=atrium
 Group=atrium
 ExecReload=/bin/kill -HUP $MAINPID
-ExecStart=/opt/node/24.13.1/bin/node --use-openssl-ca --import ./dist/server/sentry.server.js dist/server/index.js
-Environment=PATH=/opt/node/24.13.1/bin/
+ExecStart=/usr/bin/node --use-openssl-ca --import ./dist/server/sentry.server.js dist/server/index.js
 Environment=NODE_ENV=production
 Environment=PORT=46550
 Environment=REDIS_URL=redis://localhost:6379/
@@ -109,6 +108,8 @@ Environment=S3_FORCE_PATH_STYLE=true
 Environment=MAX_UPLOAD_SIZE_MB=500
 Environment=AUDIT_LOG_SINK=filesystem
 Environment=AUDIT_LOG_DIR=/var/log/atrium/
+# ENABLE_BACKGROUND_BUCKET_SIZE_CALCULATION is the EnvVarProvider constant-case mapping of the
+# OpenFeature flag "enable-background-bucket-size-calculation".
 Environment=ENABLE_BACKGROUND_BUCKET_SIZE_CALCULATION=true
 
 WorkingDirectory=/etc/atrium
@@ -248,6 +249,7 @@ pnpm dev
   - Copies `s3://<bucket>/<key>` to clipboard for files and folders.
   - Uses Clipboard API with a fallback for older browsers.
 - `ENABLE_BACKGROUND_BUCKET_SIZE_CALCULATION=true` enables bucket size calculation via `ListObjectsV2`.
+  - This environment variable controls the OpenFeature flag `enable-background-bucket-size-calculation` referenced in the **Large Bucket Performance** section.
 
 ## Production Build
 
