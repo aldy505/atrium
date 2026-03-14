@@ -42,7 +42,7 @@ in one repository.
 - Backend: Node.js + Fastify + TypeScript (`src/server`)
 - S3 operations: AWS SDK v3 (`@aws-sdk/client-s3`)
 - Session store: Redis (`token -> credentials`, TTL)
-- Deployment: Docker Compose (`atrium-app`, `redis`, `minio`)
+- Deployment: Docker Compose (`atrium-app`, `redis`, `minio`), or run it directly using Node.js
 
 ## Quick Start
 
@@ -86,6 +86,52 @@ artifacts from the [latest GitHub Actions run](https://github.com/aldy505/atrium
 2. Extract the archive (`unzip atrium-{platform}-{sha}.zip`)
 3. Run it using Node.js (`node --import ./dist/server/sentry.server.js ./dist/server/index.js`)
 
+I recommend running this using systemd, with a sample minimal service file of (assuming Node.js is installed at `/usr/bin/node`; adjust `ExecStart` if your installation differs):
+
+```ini
+[Unit]
+Description=Atrium
+After=network.target
+
+[Service]
+Type=simple
+User=atrium
+Group=atrium
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStart=/usr/bin/node --use-openssl-ca --import ./dist/server/sentry.server.js dist/server/index.js
+Environment=NODE_ENV=production
+Environment=PORT=46550
+Environment=REDIS_URL=redis://localhost:6379/
+Environment=S3_ENDPOINT=https://s3.example.com
+Environment=S3_REGION=us-east-1
+Environment=S3_FORCE_PATH_STYLE=true
+Environment=MAX_UPLOAD_SIZE_MB=500
+Environment=AUDIT_LOG_SINK=filesystem
+Environment=AUDIT_LOG_DIR=/var/log/atrium/
+# ENABLE_BACKGROUND_BUCKET_SIZE_CALCULATION is the EnvVarProvider constant-case mapping of the
+# OpenFeature flag "enable-background-bucket-size-calculation".
+Environment=ENABLE_BACKGROUND_BUCKET_SIZE_CALCULATION=true
+
+WorkingDirectory=/etc/atrium
+SyslogIdentifier=atrium
+Restart=on-failure
+RestartSec=5s
+
+PrivateTmp=yes
+ReadWritePaths=/var/log/atrium
+NoNewPrivileges=true
+ProtectSystem=strict
+RestrictNamespaces=uts ipc pid user cgroup
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+PrivateDevices=yes
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
 ### From source
 
 1. Copy env template:
@@ -126,38 +172,6 @@ docker compose up --build
 | `BUCKET_SIZE_MAX_DURATION_MS`                  | no       | `300000`         | Max runtime per bucket size calculation       |
 | `BUCKET_SIZE_MAX_OBJECTS`                      | no       | `1000000`        | Max objects scanned per calculation           |
 | `ENABLE_S3_URI_COPY`                           | no       | `false`          | Show "Copy S3 URI" action in object sidebar   |
-| `S3_ENDPOINT`                                  | yes      | -                | S3-compatible endpoint URL                    |
-| `S3_REGION`                                    | yes      | -                | S3 region string                              |
-| `S3_FORCE_PATH_STYLE`                          | no       | `true`           | Use path-style S3 URLs (needed by MinIO)      |
-| `MAX_UPLOAD_SIZE_MB`                           | no       | `100`            | Per-file upload size limit                    |
-| `AUDIT_LOG_SINK`                               | no       | `filesystem`     | Audit log sink (`filesystem`, `loki`, `none`) |
-| `AUDIT_LOG_DIR`                                | no       | `audit-logs`     | Filesystem audit log directory                |
-| `AUDIT_LOG_RETENTION_DAYS`                     | no       | `30`             | Filesystem audit log retention (days)         |
-| `AUDIT_LOG_LOKI_URL`                           | no       | -                | Loki push endpoint (required for `loki`)      |
-| `SENTRY_DSN`                                   | no       | -                | Backend Sentry DSN                            |
-| `SENTRY_ENVIRONMENT`                           | no       | `development`    | Backend Sentry environment                    |
-| `SENTRY_RELEASE`                               | no       | `atrium@0.1.0`   | Backend release identifier                    |
-| `SENTRY_TRACES_SAMPLE_RATE`                    | no       | `0.1`            | Backend tracing sample rate                   |
-| `SENTRY_ENABLE_LOGS`                           | no       | `true`           | Enable backend Sentry logs                    |
-| `SENTRY_ENABLE_METRICS`                        | no       | `true`           | Enable backend Sentry metrics                 |
-| `FRONTEND_SENTRY_DSN`                          | no       | -                | Frontend Sentry DSN (runtime via API)         |
-| `FRONTEND_SENTRY_ENVIRONMENT`                  | no       | `NODE_ENV`       | Frontend Sentry environment (runtime)         |
-| `FRONTEND_SENTRY_RELEASE`                      | no       | -                | Frontend release identifier (runtime)         |
-| `FRONTEND_SENTRY_TRACES_SAMPLE_RATE`           | no       | `0.1`            | Frontend tracing sample rate (runtime)        |
-| `FRONTEND_SENTRY_ENABLE_LOGS`                  | no       | `true`           | Enable frontend Sentry logs (runtime)         |
-| `FRONTEND_SENTRY_ENABLE_METRICS`               | no       | `true`           | Enable frontend Sentry metrics (runtime)      |
-| `FRONTEND_SENTRY_REPLAYS_SESSION_SAMPLE_RATE`  | no       | `0.1`            | Frontend replay session sample (runtime)      |
-| `FRONTEND_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE` | no       | `1.0`            | Frontend replay-on-error sample (runtime)     |
-| Variable                                       | Required | Default          | Description                                   |
-| ---------------------------------------------- | -------- | ---------------- | --------------------------------------------- |
-| `NODE_ENV`                                     | no       | `development`    | Runtime environment                           |
-| `PORT`                                         | no       | `3000`           | API/web app port                              |
-| `REDIS_URL`                                    | yes      | -                | Redis connection URL                          |
-| `SESSION_TTL_SECONDS`                          | no       | `86400`          | Session TTL in seconds                        |
-| `COOKIE_NAME`                                  | no       | `atrium_session` | Session cookie name                           |
-| `BUCKET_SIZE_CALC_INTERVAL_HOURS`              | no       | `1`              | Background bucket-size job interval (hours)   |
-| `BUCKET_SIZE_MAX_DURATION_MS`                  | no       | `300000`         | Max runtime per bucket size calculation       |
-| `BUCKET_SIZE_MAX_OBJECTS`                      | no       | `1000000`        | Max objects scanned per calculation           |
 | `S3_ENDPOINT`                                  | yes      | -                | S3-compatible endpoint URL                    |
 | `S3_REGION`                                    | yes      | -                | S3 region string                              |
 | `S3_FORCE_PATH_STYLE`                          | no       | `true`           | Use path-style S3 URLs (needed by MinIO)      |
@@ -234,6 +248,8 @@ pnpm dev
 - `ENABLE_S3_URI_COPY=true` enables a **Copy S3 URI** button in the object detail sidebar.
   - Copies `s3://<bucket>/<key>` to clipboard for files and folders.
   - Uses Clipboard API with a fallback for older browsers.
+- `ENABLE_BACKGROUND_BUCKET_SIZE_CALCULATION=true` enables bucket size calculation via `ListObjectsV2`.
+  - This environment variable controls the OpenFeature flag `enable-background-bucket-size-calculation` referenced in the **Large Bucket Performance** section.
 
 ## Production Build
 
