@@ -865,6 +865,20 @@ input:focus-visible {
   border-left: 1px solid var(--border);
 }
 
+.preview-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem 0;
+}
+
+.preview-column-header h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
 .preview-column-mobile {
   display: flex;
   flex-direction: column;

@@ -370,9 +370,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
   if (!file) {
     return (
       <div className="preview-empty center-feedback">
-        <p>
-          {enableS3UriCopy ? "Select a file or folder to view details" : "Select a file to preview"}
-        </p>
+        <p>Select a file to preview</p>
       </div>
     );
   }
