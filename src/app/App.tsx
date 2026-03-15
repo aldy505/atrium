@@ -919,7 +919,7 @@ export const App = () => {
   }
 
   return (
-    <div className="layout">
+    <div className={isPreviewVisible ? "layout layout-with-preview" : "layout"}>
       <aside className="sidebar">
         <div className="sidebar-header">
           <h2>Buckets</h2>

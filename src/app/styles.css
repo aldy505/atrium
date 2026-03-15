@@ -701,9 +701,13 @@ input:focus-visible {
 }
 
 .layout {
-  grid-template-columns: 260px 1fr 380px;
+  grid-template-columns: 260px 1fr;
   gap: 1rem;
   padding: 1rem;
+}
+
+.layout-with-preview {
+  grid-template-columns: 260px 1fr 380px;
 }
 
 .sidebar,
