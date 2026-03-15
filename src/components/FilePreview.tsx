@@ -14,7 +14,7 @@ import {
   putObjectTags,
 } from "../app/lib/api";
 import { buildS3Uri, copyTextToClipboard } from "../app/lib/s3-uri";
-import type { FileEntry, FolderEntry, ObjectTag } from "../app/lib/types";
+import type { FileEntry, ObjectTag } from "../app/lib/types";
 import { getExtension, isImageFile, isPdfFile, isTextFile } from "./FileIcon";
 
 hljs.registerLanguage("json", json);
@@ -30,7 +30,7 @@ const PdfPreview = lazy(async () => {
 
 type FilePreviewProps = {
   bucket: string;
-  file: FileEntry | FolderEntry | null;
+  file: FileEntry | null;
   enableS3UriCopy?: boolean;
 };
 
@@ -236,8 +236,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
     type: "success" | "error";
     message: string;
   } | null>(null);
-  const isFile = file?.type === "file";
-  const fileEntry = isFile ? file : null;
+  const fileEntry = file;
 
   const metadataQuery = useQuery({
     queryKey: ["object-metadata", bucket, fileEntry?.key],
@@ -370,9 +369,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
   if (!file) {
     return (
       <div className="preview-empty center-feedback">
-        <p>
-          {enableS3UriCopy ? "Select a file or folder to view details" : "Select a file to preview"}
-        </p>
+        <p>Select a file to preview</p>
       </div>
     );
   }
@@ -526,16 +523,6 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
       </div>
     </section>
   ) : null;
-
-  if (file.type === "folder") {
-    return (
-      <div className="preview-panel">
-        <h3>{file.name}</h3>
-        {copyButton}
-        <p>S3 URI: {s3Uri}</p>
-      </div>
-    );
-  }
 
   if (isImageFile(file.name)) {
     return (

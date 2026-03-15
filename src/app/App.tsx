@@ -18,7 +18,6 @@ import {
 import type {
   BucketSizeResponse,
   FileEntry,
-  FolderEntry,
   ListObjectsResponse,
   UploadSelection,
   UploadSourceFile,
@@ -33,7 +32,7 @@ import { ObjectTable } from "../components/ObjectTable";
 import { UploadDropzone } from "../components/UploadDropzone";
 
 type DeleteTarget = { type: "file"; key: string } | { type: "folder"; key: string } | null;
-type SelectedObject = FileEntry | FolderEntry;
+type SelectedObject = FileEntry;
 type ObjectsPageParam = { continuationToken?: string; maxKeys: number };
 type SortMode =
   | "name-asc"
@@ -45,7 +44,6 @@ type SortMode =
 
 const UPLOAD_CONCURRENCY = 3;
 const INITIAL_PAGE_SIZE = 100;
-const SMALL_SCREEN_PREVIEW_BREAKPOINT = 900;
 
 const calculateNextPageSize = (loadedItems: number): number => {
   if (loadedItems <= 100) {
@@ -105,14 +103,7 @@ export const App = () => {
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
-  const [isSmallScreenPreview, setIsSmallScreenPreview] = useState(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-
-    return window.matchMedia(`(max-width: ${SMALL_SCREEN_PREVIEW_BREAKPOINT}px)`).matches;
-  });
-  const [isSmallScreenPreviewOpen, setIsSmallScreenPreviewOpen] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const previewToggleButtonRef = useRef<HTMLButtonElement | null>(null);
   const shouldRestorePreviewToggleFocusRef = useRef(false);
   const prefetchInFlightRef = useRef(false);
@@ -150,45 +141,6 @@ export const App = () => {
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return undefined;
-    }
-
-    const mediaQuery = window.matchMedia(`(max-width: ${SMALL_SCREEN_PREVIEW_BREAKPOINT}px)`);
-    const syncSmallScreenPreview = (matches: boolean) => {
-      setIsSmallScreenPreview(matches);
-    };
-
-    syncSmallScreenPreview(mediaQuery.matches);
-
-    const handleChange = (event: MediaQueryListEvent) => {
-      syncSmallScreenPreview(event.matches);
-    };
-
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", handleChange);
-    } else {
-      mediaQuery.addListener(handleChange);
-    }
-
-    return () => {
-      if (typeof mediaQuery.removeEventListener === "function") {
-        mediaQuery.removeEventListener("change", handleChange);
-      } else {
-        mediaQuery.removeListener(handleChange);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isSmallScreenPreview) {
-      return;
-    }
-
-    setIsSmallScreenPreviewOpen(Boolean(selectedObject));
-  }, [isSmallScreenPreview, selectedObject]);
 
   const bucketsQuery = useQuery({
     queryKey: ["buckets", isAuthenticated],
@@ -579,41 +531,36 @@ export const App = () => {
       setCurrentPrefix("");
       clearSearch();
       setSelectedObject(null);
+      setIsPreviewOpen(false);
     },
   });
 
   const handleRefresh = async () => {
     setSelectedObject(null);
+    setIsPreviewOpen(false);
     await objectsQuery.refetch();
     await bucketsQuery.refetch();
   };
 
-  const handleSelectObject = useCallback(
-    (object: SelectedObject) => {
-      setSelectedObject(object);
+  const handleSelectFile = useCallback((file: SelectedObject) => {
+    setSelectedObject(file);
+    setIsPreviewOpen(true);
+  }, []);
 
-      if (isSmallScreenPreview) {
-        setIsSmallScreenPreviewOpen(true);
-      }
-    },
-    [isSmallScreenPreview],
-  );
-
-  const isPreviewVisible = !isSmallScreenPreview || isSmallScreenPreviewOpen;
+  const isPreviewVisible = isPreviewOpen && Boolean(selectedObject);
+  const closePreview = useCallback(() => {
+    shouldRestorePreviewToggleFocusRef.current = true;
+    setIsPreviewOpen(false);
+  }, []);
 
   useEffect(() => {
-    if (!isSmallScreenPreview || isPreviewVisible || !shouldRestorePreviewToggleFocusRef.current) {
+    if (isPreviewVisible || !shouldRestorePreviewToggleFocusRef.current) {
       return;
     }
 
     previewToggleButtonRef.current?.focus();
     shouldRestorePreviewToggleFocusRef.current = false;
-  }, [isPreviewVisible, isSmallScreenPreview]);
-
-  const closeSmallScreenPreview = useCallback(() => {
-    shouldRestorePreviewToggleFocusRef.current = true;
-    setIsSmallScreenPreviewOpen(false);
-  }, []);
+  }, [isPreviewVisible]);
 
   const updateUploadTask = (taskId: string, updater: (task: UploadTask) => UploadTask): void => {
     setUploadTasks((prev) => prev.map((task) => (task.id === taskId ? updater(task) : task)));
@@ -972,7 +919,7 @@ export const App = () => {
   }
 
   return (
-    <div className="layout">
+    <div className={isPreviewVisible ? "layout layout-with-preview" : "layout"}>
       <aside className="sidebar">
         <div className="sidebar-header">
           <h2>Buckets</h2>
@@ -992,6 +939,7 @@ export const App = () => {
                 setFolderLoadLimit(null);
                 clearSearch();
                 setSelectedObject(null);
+                setIsPreviewOpen(false);
               }}
             >
               {bucket}
@@ -1020,19 +968,26 @@ export const App = () => {
             ) : null}
           </div>
           <div className="toolbar-actions">
-            {isSmallScreenPreview ? (
-              <button
-                type="button"
-                className="preview-toggle"
-                ref={previewToggleButtonRef}
-                onClick={() => setIsSmallScreenPreviewOpen((current) => !current)}
-                disabled={!selectedObject}
-                aria-controls={isPreviewVisible ? "object-preview" : undefined}
-                aria-expanded={isPreviewVisible}
-              >
-                {isPreviewVisible ? "Hide preview" : "Show preview"}
-              </button>
-            ) : null}
+            <button
+              type="button"
+              className="preview-toggle"
+              ref={previewToggleButtonRef}
+              onClick={() => {
+                if (isPreviewVisible) {
+                  closePreview();
+                  return;
+                }
+
+                if (selectedObject) {
+                  setIsPreviewOpen(true);
+                }
+              }}
+              disabled={!selectedObject}
+              aria-controls={isPreviewVisible ? "object-preview" : undefined}
+              aria-expanded={isPreviewVisible}
+            >
+              {isPreviewVisible ? "Hide preview" : "Show preview"}
+            </button>
             <label className="auto-load-toggle">
               <input
                 type="checkbox"
@@ -1164,12 +1119,10 @@ export const App = () => {
                 scrollStateKey={tableStateKey}
                 initialScrollTop={restoredScrollTop}
                 isInitialLoading={objectsQuery.isLoading}
-                enableS3UriCopy={runtimeConfigQuery.data?.features?.enableS3UriCopy ?? false}
                 onScrollProgress={handleTableScrollProgress}
                 onScrollPositionChange={saveScrollPosition}
                 onOpenFolder={handleOpenFolder}
-                onSelectFolder={handleSelectObject}
-                onSelectFile={handleSelectObject}
+                onSelectFile={handleSelectFile}
                 onDeleteFolder={(key) => setDeleteTarget({ type: "folder", key })}
                 onDeleteFile={(key) => setDeleteTarget({ type: "file", key })}
                 onDownloadFile={(key) => {
@@ -1228,20 +1181,13 @@ export const App = () => {
       </main>
 
       {isPreviewVisible ? (
-        <section
-          id="object-preview"
-          className={
-            isSmallScreenPreview ? "preview-column preview-column-mobile" : "preview-column"
-          }
-        >
-          {isSmallScreenPreview ? (
-            <div className="preview-mobile-header">
-              <h2>Preview</h2>
-              <button type="button" onClick={closeSmallScreenPreview}>
-                Hide preview
-              </button>
-            </div>
-          ) : null}
+        <section id="object-preview" className="preview-column">
+          <div className="preview-column-header">
+            <h2>Preview</h2>
+            <button type="button" onClick={closePreview}>
+              Collapse
+            </button>
+          </div>
           <FilePreview
             bucket={selectedBucket}
             file={selectedObject}

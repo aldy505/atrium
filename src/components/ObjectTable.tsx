@@ -11,11 +11,9 @@ type ObjectTableProps = {
   loadingMore?: boolean;
   scrollStateKey: string;
   initialScrollTop?: number;
-  enableS3UriCopy?: boolean;
   onScrollProgress?: (progress: number) => void;
   onScrollPositionChange?: (scrollTop: number) => void;
   onOpenFolder: (key: string) => void;
-  onSelectFolder: (folder: FolderEntry) => void;
   onSelectFile: (file: FileEntry) => void;
   onDeleteFolder: (key: string) => void;
   onDeleteFile: (key: string) => void;
@@ -88,11 +86,9 @@ export const ObjectTable = ({
   loadingMore = false,
   scrollStateKey,
   initialScrollTop = 0,
-  enableS3UriCopy = false,
   onScrollProgress,
   onScrollPositionChange,
   onOpenFolder,
-  onSelectFolder,
   onSelectFile,
   onDeleteFolder,
   onDeleteFile,
@@ -249,11 +245,6 @@ export const ObjectTable = ({
                     <td>-</td>
                     <td>
                       <div className="table-actions">
-                        {enableS3UriCopy ? (
-                          <button type="button" onClick={() => onSelectFolder(folder)}>
-                            Details
-                          </button>
-                        ) : null}
                         <button
                           type="button"
                           className="danger"

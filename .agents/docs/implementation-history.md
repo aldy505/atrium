@@ -219,3 +219,15 @@ Last updated: 2026-03-13
   - `pnpm run test`
   - `pnpm run typecheck`
   - `pnpm run build`
+
+## 19) 2026-03-14 Follow-up: Right Sidebar Collapse + File-Only Preview Trigger
+
+- Reworked preview sidebar behavior in `src/app/App.tsx`:
+  - Preview sidebar now reclaims its grid column when collapsed on wide layouts and stays file-driven across viewports.
+  - Initial state is collapsed (no selected file).
+  - Selecting a file opens the sidebar automatically.
+  - Sidebar includes an explicit `Collapse` button in the preview header.
+- Removed folder-triggered sidebar entry behavior:
+  - Object table no longer renders folder `Details` action.
+  - Preview empty-state copy now explicitly instructs users to select a file.
+- Updated styles in `src/app/styles.css` with a dedicated preview header row for the collapse control.
