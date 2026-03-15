@@ -1,6 +1,6 @@
 # Atrium Current State (Handoff)
 
-Last updated: 2026-03-14
+Last updated: 2026-03-15
 
 ## Current Status
 
@@ -20,7 +20,8 @@ Last updated: 2026-03-14
 - `ENABLE_S3_URI_COPY` now gates a sidebar **Copy S3 URI** action for file previews (disabled by default).
 - Right preview sidebar is collapsible and starts collapsed when no file is selected.
 - Preview sidebar auto-opens on file selection and does not auto-open for folder interactions.
-- PDF files can now open in a larger modal viewer powered by `pdfjs-viewer-element` / PDF.js, while metadata and tags remain in the sidebar.
+- PDF files now open in a top-level floating modal viewer powered by `pdfjs-viewer-element` / PDF.js, while metadata and tags remain in the right sidebar.
+- The large PDF viewer is no longer rendered from the sidebar subtree, so it is not visually anchored to the preview column.
 - Password-protected PDFs are handled on a best-effort basis via the embedded viewer; download remains available as a fallback.
 - Browser favicon support is now wired through the Vite app shell with generated `svg`, `png`, and `ico` assets at the repo root.
 
@@ -67,5 +68,5 @@ Last updated: 2026-03-14
    - `X-Atrium-S3-List-Cache: BYPASS` when cache disabled or unavailable
 5. Verify audit log output in filesystem or Loki based on `AUDIT_LOG_SINK`.
 6. Create a folder and confirm navigation enters the new prefix.
-7. Preview a multi-page PDF, verify zoom/search/thumbs in the viewer, and confirm download still works.
+7. Preview a multi-page PDF, verify the viewer opens as a page-wide modal, and confirm zoom/search/thumbs and download still work.
 8. Open the app in a browser and confirm the generated favicon appears in the tab in both dev and production builds.
