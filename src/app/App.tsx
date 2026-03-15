@@ -1306,14 +1306,19 @@ export const App = () => {
       {pdfPreviewTarget ? (
         <Suspense
           fallback={
-            <div className="modal-overlay pdf-preview-overlay" role="dialog" aria-modal="true">
+            <div
+              className="modal-overlay pdf-preview-overlay"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="pdf-preview-loading-title"
+            >
               <div className="modal-card pdf-preview-dialog">
                 <div
                   className="center-feedback status-banner pdf-preview-loading-shell"
                   aria-live="polite"
                 >
                   <span className="spinner" aria-hidden="true" />
-                  <p>Loading PDF viewer...</p>
+                  <p id="pdf-preview-loading-title">Loading PDF viewer...</p>
                 </div>
               </div>
             </div>
