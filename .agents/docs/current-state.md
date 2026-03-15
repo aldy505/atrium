@@ -20,7 +20,7 @@ Last updated: 2026-03-14
 - `ENABLE_S3_URI_COPY` now gates a sidebar **Copy S3 URI** action for file previews (disabled by default).
 - Right preview sidebar is collapsible and starts collapsed when no file is selected.
 - Preview sidebar auto-opens on file selection and does not auto-open for folder interactions.
-- PDF files can now open in a larger modal viewer powered by `pdfjs-viewer-element` / PDF.js from an explicit sidebar action, while metadata and tags remain in the sidebar.
+- PDF files can now open in a larger modal viewer powered by `pdfjs-viewer-element` / PDF.js, while metadata and tags remain in the sidebar.
 - Password-protected PDFs are handled on a best-effort basis via the embedded viewer; download remains available as a fallback.
 - Browser favicon support is now wired through the Vite app shell with generated `svg`, `png`, and `ico` assets at the repo root.
 
