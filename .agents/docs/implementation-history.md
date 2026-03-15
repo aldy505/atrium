@@ -1,6 +1,6 @@
 # Atrium Implementation History
 
-Last updated: 2026-03-13
+Last updated: 2026-03-15
 
 ## 1) Project Initialization
 
@@ -231,3 +231,20 @@ Last updated: 2026-03-13
   - Object table no longer renders folder `Details` action.
   - Preview empty-state copy now explicitly instructs users to select a file.
 - Updated styles in `src/app/styles.css` with a dedicated preview header row for the collapse control.
+
+## 20) 2026-03-15 Follow-up: PDF Preview Modal Decoupled from Sidebar
+
+- Followed up on the initial PDF preview rollout after the large viewer still felt anchored to the right preview sidebar.
+- Moved PDF modal ownership from `src/components/FilePreview.tsx` into `src/app/App.tsx` so the viewer is rendered from the app-level modal layer alongside other dialogs.
+- Kept PDF metadata, tags, and the explicit `Open PDF viewer` action inside the right preview sidebar.
+- Added `src/components/pdf-preview-target.ts` to centralize the modal lifecycle rules for:
+  - bucket changes
+  - selected-file changes
+  - preview-sidebar collapse
+- Added `tests/pdf-preview-target.test.ts` to cover the modal lifecycle helper behavior.
+- Validation run for the follow-up:
+  - `pnpm run fmt`
+  - `pnpm run lint:fix`
+  - `pnpm run typecheck`
+  - `pnpm run build`
+  - `pnpm run test`

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, type InfiniteData } from "@tanstack/react-query";
 import {
   checkSession,
@@ -29,6 +29,11 @@ import { CreateFolderDialog } from "../components/CreateFolderDialog";
 import { FilePreview } from "../components/FilePreview";
 import { LoginForm } from "../components/LoginForm";
 import { ObjectTable } from "../components/ObjectTable";
+import {
+  buildPdfPreviewTarget,
+  shouldClosePdfPreview,
+  type PdfPreviewTarget,
+} from "../components/pdf-preview-target";
 import { UploadDropzone } from "../components/UploadDropzone";
 
 type DeleteTarget = { type: "file"; key: string } | { type: "folder"; key: string } | null;
@@ -44,6 +49,10 @@ type SortMode =
 
 const UPLOAD_CONCURRENCY = 3;
 const INITIAL_PAGE_SIZE = 100;
+const PdfPreview = lazy(async () => {
+  const module = await import("../components/PdfPreview");
+  return { default: module.PdfPreview };
+});
 
 const calculateNextPageSize = (loadedItems: number): number => {
   if (loadedItems <= 100) {
@@ -104,6 +113,7 @@ export const App = () => {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [pdfPreviewTarget, setPdfPreviewTarget] = useState<PdfPreviewTarget | null>(null);
   const previewToggleButtonRef = useRef<HTMLButtonElement | null>(null);
   const shouldRestorePreviewToggleFocusRef = useRef(false);
   const prefetchInFlightRef = useRef(false);
@@ -483,6 +493,7 @@ export const App = () => {
       setCurrentPrefix(prefix);
       clearSearch();
       setSelectedObject(null);
+      setPdfPreviewTarget(null);
     },
     [clearSearch],
   );
@@ -532,12 +543,14 @@ export const App = () => {
       clearSearch();
       setSelectedObject(null);
       setIsPreviewOpen(false);
+      setPdfPreviewTarget(null);
     },
   });
 
   const handleRefresh = async () => {
     setSelectedObject(null);
     setIsPreviewOpen(false);
+    setPdfPreviewTarget(null);
     await objectsQuery.refetch();
     await bucketsQuery.refetch();
   };
@@ -551,7 +564,15 @@ export const App = () => {
   const closePreview = useCallback(() => {
     shouldRestorePreviewToggleFocusRef.current = true;
     setIsPreviewOpen(false);
+    setPdfPreviewTarget(null);
   }, []);
+
+  const handleOpenPdfPreview = useCallback(
+    (file: SelectedObject) => {
+      setPdfPreviewTarget(buildPdfPreviewTarget(selectedBucket, file));
+    },
+    [selectedBucket],
+  );
 
   useEffect(() => {
     if (isPreviewVisible || !shouldRestorePreviewToggleFocusRef.current) {
@@ -561,6 +582,14 @@ export const App = () => {
     previewToggleButtonRef.current?.focus();
     shouldRestorePreviewToggleFocusRef.current = false;
   }, [isPreviewVisible]);
+
+  useEffect(() => {
+    if (!shouldClosePdfPreview(pdfPreviewTarget, selectedBucket, selectedObject, isPreviewOpen)) {
+      return;
+    }
+
+    setPdfPreviewTarget(null);
+  }, [isPreviewOpen, pdfPreviewTarget, selectedBucket, selectedObject]);
 
   const updateUploadTask = (taskId: string, updater: (task: UploadTask) => UploadTask): void => {
     setUploadTasks((prev) => prev.map((task) => (task.id === taskId ? updater(task) : task)));
@@ -940,6 +969,7 @@ export const App = () => {
                 clearSearch();
                 setSelectedObject(null);
                 setIsPreviewOpen(false);
+                setPdfPreviewTarget(null);
               }}
             >
               {bucket}
@@ -1192,6 +1222,7 @@ export const App = () => {
             bucket={selectedBucket}
             file={selectedObject}
             enableS3UriCopy={runtimeConfigQuery.data?.features?.enableS3UriCopy ?? false}
+            onOpenPdfPreview={handleOpenPdfPreview}
           />
         </section>
       ) : null}
@@ -1270,6 +1301,34 @@ export const App = () => {
             await createFolderMutation.mutateAsync(name);
           }}
         />
+      ) : null}
+
+      {pdfPreviewTarget ? (
+        <Suspense
+          fallback={
+            <div className="modal-overlay pdf-preview-overlay" role="dialog" aria-modal="true">
+              <div className="modal-card pdf-preview-dialog">
+                <div
+                  className="center-feedback status-banner pdf-preview-loading-shell"
+                  aria-live="polite"
+                >
+                  <span className="spinner" aria-hidden="true" />
+                  <p>Loading PDF viewer...</p>
+                </div>
+              </div>
+            </div>
+          }
+        >
+          <PdfPreview
+            key={pdfPreviewTarget.fileKey}
+            bucket={pdfPreviewTarget.bucket}
+            fileKey={pdfPreviewTarget.fileKey}
+            fileName={pdfPreviewTarget.fileName}
+            onClose={() => {
+              setPdfPreviewTarget(null);
+            }}
+          />
+        </Suspense>
       ) : null}
     </div>
   );

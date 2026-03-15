@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import hljs from "highlight.js/lib/core";
 import json from "highlight.js/lib/languages/json";
@@ -24,15 +24,11 @@ hljs.registerLanguage("markdown", markdown);
 hljs.registerLanguage("plaintext", plaintext);
 hljs.registerLanguage("csv", csv);
 
-const PdfPreview = lazy(async () => {
-  const module = await import("./PdfPreview");
-  return { default: module.PdfPreview };
-});
-
 type FilePreviewProps = {
   bucket: string;
   file: FileEntry | null;
   enableS3UriCopy?: boolean;
+  onOpenPdfPreview?: (file: FileEntry) => void;
 };
 
 type EditableTag = {
@@ -216,12 +212,16 @@ const PreviewMetadata = ({ size, lastModified, contentType }: PreviewMetadataPro
   );
 };
 
-export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePreviewProps) => {
+export const FilePreview = ({
+  bucket,
+  file,
+  enableS3UriCopy = false,
+  onOpenPdfPreview,
+}: FilePreviewProps) => {
   const [textContent, setTextContent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
-  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [editableTags, setEditableTags] = useState<EditableTag[]>([]);
   const [initialTags, setInitialTags] = useState<EditableTag[]>([]);
   const [isSavingTags, setIsSavingTags] = useState(false);
@@ -353,10 +353,6 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
     isTaggingSupported && !isTagsLoading && !isSavingTags && editableTags.length < MAX_TAGS;
   const canSaveTags =
     isTaggingSupported && !isSavingTags && !isTagsLoading && tagsChanged && !tagValidationError;
-
-  useEffect(() => {
-    setIsPdfModalOpen(false);
-  }, [fileEntry?.key]);
 
   if (!file) {
     return (
@@ -588,7 +584,7 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
               <button
                 type="button"
                 onClick={() => {
-                  setIsPdfModalOpen(true);
+                  onOpenPdfPreview?.(fileEntry);
                 }}
               >
                 Open PDF viewer
@@ -604,33 +600,6 @@ export const FilePreview = ({ bucket, file, enableS3UriCopy = false }: FilePrevi
             </div>
           </div>
         </div>
-        {isPdfModalOpen ? (
-          <Suspense
-            fallback={
-              <div className="modal-overlay pdf-preview-overlay" role="dialog" aria-modal="true">
-                <div className="modal-card pdf-preview-dialog">
-                  <div
-                    className="center-feedback status-banner pdf-preview-loading-shell"
-                    aria-live="polite"
-                  >
-                    <span className="spinner" aria-hidden="true" />
-                    <p>Loading PDF viewer...</p>
-                  </div>
-                </div>
-              </div>
-            }
-          >
-            <PdfPreview
-              key={file.key}
-              bucket={bucket}
-              fileKey={file.key}
-              fileName={file.name}
-              onClose={() => {
-                setIsPdfModalOpen(false);
-              }}
-            />
-          </Suspense>
-        ) : null}
       </>
     );
   }
