@@ -215,6 +215,7 @@ export const PdfPreview = ({ bucket, fileKey, fileName, onClose }: PdfPreviewPro
             pagemode: "thumbs",
             "iframe-title": `PDF preview for ${fileName}`,
             className: "pdf-preview-viewer",
+            style: { display: "initial" },
           })}
         </div>
       </div>
