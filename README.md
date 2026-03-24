@@ -68,8 +68,10 @@ supports two providers:
 - environment variables via `@openfeature/env-var-provider`
 - OFREP via `@openfeature/ofrep-provider`
 
-That means the runtime can work with providers such as Flipt, Go Feature Flag,
-ConfigCat, and flagd without the app code needing to know which one is in use.
+With this setup, Atrium can integrate with providers such as Flipt, Go Feature Flag,
+ConfigCat, or flagd when they are exposed via environment variables or an
+OFREP-compatible endpoint (or when you add and configure a dedicated OpenFeature
+provider for them). These vendors are not wired in out-of-the-box.
 
 ## Quick Start
 
@@ -272,7 +274,7 @@ pnpm dev
 
 ## Optional Features
 
-- These are the current feature flags exposed through OpenFeature.
+These are the current feature flags exposed through OpenFeature.
 
 - `ENABLE_S3_URI_COPY=true` enables a **Copy S3 URI** button in the object detail sidebar.
   - Copies `s3://<bucket>/<key>` to clipboard for files and folders.
