@@ -44,6 +44,35 @@ in one repository.
 - Session store: Redis (`token -> credentials`, TTL)
 - Deployment: Docker Compose (`atrium-app`, `redis`, `minio`), or run it directly using Node.js
 
+## Why Sentry and OpenFeature
+
+### Why Sentry
+
+Sentry gives Atrium a single place for errors, tracing, metrics, and logs. That
+keeps production debugging straightforward: if something goes wrong, we can
+trace the request, inspect the error, and correlate it with the surrounding
+telemetry without stitching together multiple tools.
+
+I intentionally did not take the OpenTelemetry-first route for this project.
+For Atrium, the error-reporting experience in Sentry is better suited to the
+workflow I want, and I want to avoid introducing observability plumbing that
+can become a performance bottleneck for an app that already spends a lot of
+time talking to S3 and Redis.
+
+### Why OpenFeature
+
+OpenFeature keeps feature flags vendor-agnostic, which is the same kind of
+abstraction benefit that OpenTelemetry brings to observability. Atrium currently
+supports two providers:
+
+- environment variables via `@openfeature/env-var-provider`
+- OFREP via `@openfeature/ofrep-provider`
+
+With this setup, Atrium can integrate with providers such as Flipt, Go Feature Flag,
+ConfigCat, or flagd when they are exposed via environment variables or an
+OFREP-compatible endpoint (or when you add and configure a dedicated OpenFeature
+provider for them). These vendors are not wired in out-of-the-box.
+
 ## Quick Start
 
 ### Docker Compose
@@ -244,6 +273,8 @@ pnpm dev
 - MinIO test credentials are `minioadmin` for access key and `minioadmin` for secret key.
 
 ## Optional Features
+
+These are the current feature flags exposed through OpenFeature.
 
 - `ENABLE_S3_URI_COPY=true` enables a **Copy S3 URI** button in the object detail sidebar.
   - Copies `s3://<bucket>/<key>` to clipboard for files and folders.
