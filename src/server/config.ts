@@ -11,37 +11,43 @@ const parseEnvBool = (val: unknown, def: boolean): boolean => {
   return def;
 };
 
-const envSchema = z.object({
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-  PORT: z.coerce.number().default(3000),
-  REDIS_URL: z.string().min(1),
-  S3_LIST_CACHE_ENABLED: z.preprocess((v) => parseEnvBool(v, true), z.boolean()).default(true),
-  S3_LIST_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(300),
-  S3_LIST_CACHE_INVALIDATION_MODE: z.enum(["targeted", "bucket"]).default("targeted"),
-  S3_LIST_CACHE_INCLUDE_HEADERS: z
-    .preprocess((v) => parseEnvBool(v, true), z.boolean())
-    .default(true),
-  BUCKET_SIZE_CALC_INTERVAL_HOURS: z.coerce.number().int().positive().default(1),
-  BUCKET_SIZE_MAX_DURATION_MS: z.coerce.number().int().positive().default(300000),
-  BUCKET_SIZE_MAX_OBJECTS: z.coerce.number().int().positive().default(1000000),
-  S3_ENDPOINT: z.string().min(1),
-  S3_REGION: z.string().min(1),
-  S3_FORCE_PATH_STYLE: z.preprocess((v) => parseEnvBool(v, true), z.boolean()).default(true),
-  SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(86400),
-  COOKIE_NAME: z.string().default("atrium_session"),
-  MAX_UPLOAD_SIZE_MB: z.coerce.number().positive().default(100),
-  AUDIT_LOG_SINK: z.enum(["filesystem", "loki", "none"]).default("filesystem"),
-  AUDIT_LOG_DIR: z.string().default("audit-logs"),
-  AUDIT_LOG_RETENTION_DAYS: z.coerce.number().int().min(1).default(30),
-  AUDIT_LOG_LOKI_URL: z.string().optional(),
-  SENTRY_DSN: z.string().optional(),
-  SENTRY_ENVIRONMENT: z.string().optional(),
-  SENTRY_RELEASE: z.string().optional(),
-  SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
-  SENTRY_ENABLE_LOGS: z.preprocess((v) => parseEnvBool(v, true), z.boolean()).default(true),
-  SENTRY_ENABLE_METRICS: z.preprocess((v) => parseEnvBool(v, true), z.boolean()).default(true),
-  OFREP_ENDPOINT: z.string().optional(),
-});
+const envSchema = z
+  .object({
+    NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+    PORT: z.coerce.number().default(3000),
+    REDIS_URL: z.string().min(1).optional(),
+    REDIS_CLUSTER_URLS: z.string().optional(),
+    S3_LIST_CACHE_ENABLED: z.preprocess((v) => parseEnvBool(v, true), z.boolean()).default(true),
+    S3_LIST_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(300),
+    S3_LIST_CACHE_INVALIDATION_MODE: z.enum(["targeted", "bucket"]).default("targeted"),
+    S3_LIST_CACHE_INCLUDE_HEADERS: z
+      .preprocess((v) => parseEnvBool(v, true), z.boolean())
+      .default(true),
+    BUCKET_SIZE_CALC_INTERVAL_HOURS: z.coerce.number().int().positive().default(1),
+    BUCKET_SIZE_MAX_DURATION_MS: z.coerce.number().int().positive().default(300000),
+    BUCKET_SIZE_MAX_OBJECTS: z.coerce.number().int().positive().default(1000000),
+    S3_ENDPOINT: z.string().min(1),
+    S3_REGION: z.string().min(1),
+    S3_FORCE_PATH_STYLE: z.preprocess((v) => parseEnvBool(v, true), z.boolean()).default(true),
+    SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(86400),
+    COOKIE_NAME: z.string().default("atrium_session"),
+    MAX_UPLOAD_SIZE_MB: z.coerce.number().positive().default(100),
+    AUDIT_LOG_SINK: z.enum(["filesystem", "loki", "none"]).default("filesystem"),
+    AUDIT_LOG_DIR: z.string().default("audit-logs"),
+    AUDIT_LOG_RETENTION_DAYS: z.coerce.number().int().min(1).default(30),
+    AUDIT_LOG_LOKI_URL: z.string().optional(),
+    SENTRY_DSN: z.string().optional(),
+    SENTRY_ENVIRONMENT: z.string().optional(),
+    SENTRY_RELEASE: z.string().optional(),
+    SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
+    SENTRY_ENABLE_LOGS: z.preprocess((v) => parseEnvBool(v, true), z.boolean()).default(true),
+    SENTRY_ENABLE_METRICS: z.preprocess((v) => parseEnvBool(v, true), z.boolean()).default(true),
+    OFREP_ENDPOINT: z.string().optional(),
+  })
+  .refine((data) => Boolean(data.REDIS_URL) || Boolean(data.REDIS_CLUSTER_URLS), {
+    message: "Either REDIS_URL or REDIS_CLUSTER_URLS must be provided",
+    path: ["REDIS_URL"],
+  });
 
 const parsed = envSchema.safeParse(process.env);
 
