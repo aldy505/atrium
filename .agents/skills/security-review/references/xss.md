@@ -28,13 +28,14 @@ document.createTextNode(userInput);
 ```
 
 **HTML Entity Encoding**
+
 | Character | Encoding |
-|-----------|----------|
-| `<` | `&lt;` |
-| `>` | `&gt;` |
-| `&` | `&amp;` |
-| `"` | `&quot;` |
-| `'` | `&#x27;` |
+| --------- | -------- |
+| `<`       | `&lt;`   |
+| `>`       | `&gt;`   |
+| `&`       | `&amp;`  |
+| `"`       | `&quot;` |
+| `'`       | `&#x27;` |
 
 ### HTML Attribute Context
 
