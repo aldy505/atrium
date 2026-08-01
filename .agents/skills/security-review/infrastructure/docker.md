@@ -262,7 +262,7 @@ services:
 
 secrets:
   db_password:
-    external: true  # Or file: ./secrets/db_password
+    external: true # Or file: ./secrets/db_password
 ```
 
 ### Privilege Restrictions
