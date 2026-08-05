@@ -5,9 +5,10 @@ import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 import { Redis } from "ioredis";
 import { AsyncTask, SimpleIntervalJob } from "toad-scheduler";
 import { config } from "./config.js";
+import { createRedisClient, isCluster } from "./redis.js";
 import type { SessionCredentials } from "./types.js";
 
-const redis = new Redis(config.REDIS_URL);
+const redis = createRedisClient();
 const redisKeyPrefix = "atrium";
 const bucketSizeFeatureFlag = "enable-background-bucket-size-calculation";
 const trackedSessionBucketsTTLSeconds = 86400 * 7;
@@ -97,12 +98,12 @@ const parseBucketSizeResult = (value: string | null): BucketSizeResult | null =>
   }
 };
 
-const scanKeys = async (pattern: string): Promise<string[]> => {
+const scanNode = async (node: Redis, pattern: string): Promise<string[]> => {
   let cursor = "0";
   const matchedKeys: string[] = [];
 
   do {
-    const [nextCursor, batch] = await redis.scan(cursor, "MATCH", pattern, "COUNT", "200");
+    const [nextCursor, batch] = await node.scan(cursor, "MATCH", pattern, "COUNT", "200");
     cursor = nextCursor;
     if (batch.length) {
       matchedKeys.push(...batch);
@@ -110,6 +111,16 @@ const scanKeys = async (pattern: string): Promise<string[]> => {
   } while (cursor !== "0");
 
   return matchedKeys;
+};
+
+const scanKeys = async (pattern: string): Promise<string[]> => {
+  if (isCluster(redis)) {
+    const nodes = redis.nodes("master");
+    const batches = await Promise.all(nodes.map((node) => scanNode(node, pattern)));
+    return batches.flat();
+  }
+
+  return scanNode(redis, pattern);
 };
 
 export const isBackgroundBucketSizeCalculationEnabled = async (): Promise<boolean> => {

@@ -1,9 +1,10 @@
 import crypto from "node:crypto";
-import { Redis } from "ioredis";
+import type { Redis } from "ioredis";
 import { config } from "./config.js";
+import { createRedisClient, isCluster } from "./redis.js";
 import type { ListObjectsResponse, SessionCredentials } from "./types.js";
 
-const redis = new Redis(config.REDIS_URL);
+const redis = createRedisClient();
 
 const redisKeyPrefix = "atrium";
 const sessionKey = (token: string) => `${redisKeyPrefix}:session:${token}`;
@@ -37,12 +38,12 @@ const listCacheKey = (
   return `${listCacheBucketNamespace(sessionToken, bucket)}:${encodeSegment(prefix)}:${encodeSegment(continuationToken || "")}:${maxKeys}`;
 };
 
-const scanKeys = async (pattern: string): Promise<string[]> => {
+const scanNode = async (node: Redis, pattern: string): Promise<string[]> => {
   let cursor = "0";
   const matchedKeys: string[] = [];
 
   do {
-    const [nextCursor, batch] = await redis.scan(cursor, "MATCH", pattern, "COUNT", "200");
+    const [nextCursor, batch] = await node.scan(cursor, "MATCH", pattern, "COUNT", "200");
     cursor = nextCursor;
 
     if (batch.length) {
@@ -53,9 +54,40 @@ const scanKeys = async (pattern: string): Promise<string[]> => {
   return matchedKeys;
 };
 
+const scanKeys = async (pattern: string): Promise<string[]> => {
+  if (isCluster(redis)) {
+    const nodes = redis.nodes("master");
+    const batches = await Promise.all(nodes.map((node) => scanNode(node, pattern)));
+    return batches.flat();
+  }
+
+  return scanNode(redis, pattern);
+};
+
 const deleteKeys = async (keys: string[]): Promise<number> => {
   if (!keys.length) {
     return 0;
+  }
+
+  if (isCluster(redis)) {
+    let deleted = 0;
+
+    for (let index = 0; index < keys.length; index += 500) {
+      const batch = keys.slice(index, index + 500);
+      const pipeline = redis.pipeline();
+
+      for (const key of batch) {
+        pipeline.unlink(key);
+      }
+
+      const results = await pipeline.exec();
+
+      if (results) {
+        deleted += results.filter(([err]) => err === null).length;
+      }
+    }
+
+    return deleted;
   }
 
   let deleted = 0;
